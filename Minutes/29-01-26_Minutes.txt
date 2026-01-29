@@ -1,0 +1,11 @@
+Discussed Tasks to Complete
+================================
+1. Recap DNA sequencing lecture from Bioinformatics module.
+2. Research Illumina, PacBio, NanoPore. Including where they are weak/strong (e.g. Homopolymer runs in PacBio)
+3. Find out about paired end reads, what they are, how they are used, when/why they are used.
+4. Phred score, what it means and how it is calculated
+5. How to create synthetic sequences to use to test against (e.g. NanoSim)
+6. Research MUMmer 4, how it is used for alignment, how it works etc.
+7. Compare sequence alignment methods BLAST, Smith-Waterman, Needleman-Wunsch.
+8. Sanger sequencing, what it is, how it works, strengths/weaknesses.
+9. Create a function that takes a FASTA of a real genome and generates reads from them.
