@@ -1,8 +1,4 @@
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
 import random
-
 
 # Generate random reads from sequence with simulated sequencing errors and quality scores
 def generate_reads(sequence, read_length=150, coverage=30, error_rate=0.001):
@@ -15,9 +11,10 @@ def generate_reads(sequence, read_length=150, coverage=30, error_rate=0.001):
     bases = ['A', 'T', 'G', 'C']
 
     for i in range(num_reads):
+        if read_length > sequence_len:
+            raise ValueError('Read length exceeds sequence length')
         start_pos = random.randint(0, sequence_len - read_length)
         read_seq = sequence[start_pos:start_pos + read_length]
-        # TODO make this work on cases where read length is > sequence_len
 
         # Intorducing sequencing errors
         read_list = list(read_seq)
@@ -36,30 +33,59 @@ def generate_reads(sequence, read_length=150, coverage=30, error_rate=0.001):
                 quality = random.randint(30, 40)
             qualities.append(quality)
 
-        # Create SeqRecord with quality scores
-        read_record = SeqRecord(
-            Seq(read_seq_with_errors),
-            id=f"read_{i + 1}",
-            description=f"simulated_read start={start_pos} length={len(read_seq_with_errors)}",
-            letter_annotations={"phred_quality": qualities}
-        )
+        # Creates a dictionary with id, description, sequence, quality scores
+        read_record = {
+            "id": f"read_{i + 1}",
+            "description": f"simulated_read start={start_pos} length={len(read_seq_with_errors)}",
+            "sequence": read_seq_with_errors,
+            "qualities": qualities
+        }
 
         reads.append(read_record)
 
     return reads
 
-def read_sequence(filename):
-    # This currently gets just the first sequence
-    with open(filename) as handle:
-        for record in SeqIO.parse(handle, "fasta"):
-            return str(record.seq)
+def write_fastq(reads, filename):
+    with open(filename, "w") as f:
+        for read in reads:
+            f.write(f"@{read['id']} {read['description']}\n")
+            f.write(f"{read['sequence']}\n")
+            f.write("+\n")
+            # we add 33 to phred scores and then convert to a char to get ASCII representation of the Phred score
+            # https://help.basespace.illumina.com/files-used-by-basespace/quality-scores
+            f.write("".join(chr(q + 33) for q in read["qualities"]) + "\n")
+
+def read_sequences(filename):
+    sequences = []
+    header = None
+    current_sequence = [] # originally used "" however appending to a string is much slower than a list in python
+    # This is as += for a string, creates a new strinbg, copies old string into it, appends the new line, gets rid of
+    # old string O(n^2) as it is in a loop. Whereas appending to a list is O(1) so O(N) for this loop.
+
+    with open(filename, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line.startswith('>'):
+                # If we already have a header then we have reached the end of a sequence, which we must add it to the
+                # list of sequences
+                if header:
+                    sequences.append((header, ''.join(current_sequence)))
+                current_header = line[1:]  # Remove the '>' character
+                # Reset the current sequence to be blank
+                header = line
+                current_sequence = []
+            else:
+                current_sequence.append(line)
+        if header:
+            sequences.append((header, ''.join(current_sequence)))
+
+    return sequences
 
 
 if __name__ == "__main__":
     example_input = "..\\Example_FASTA\\gene.fna"
 
-    example_sequence = read_sequence(example_input)
-    reads = generate_reads(example_sequence)
+    example_sequences = read_sequences(example_input)
+    reads = generate_reads(example_sequences[1][1])
 
-    with open("simulated_reads.fastq", "w") as output_handle:
-        SeqIO.write(reads, output_handle, "fastq")
+    write_fastq(reads, "simulated_reads.fastq")
