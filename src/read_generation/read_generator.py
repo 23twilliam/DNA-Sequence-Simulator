@@ -16,7 +16,7 @@ def generate_reads(sequence, read_length=150, coverage=30, error_rate=0.001):
         start_pos = random.randint(0, sequence_len - read_length)
         read_seq = sequence[start_pos:start_pos + read_length]
 
-        # Intorducing sequencing errors
+        # Introducing sequencing errors
         read_list = list(read_seq)
         for j in range(len(read_list)):
             if random.random() < error_rate:
@@ -82,10 +82,11 @@ def read_sequences(filename):
     return sequences
 
 
-if __name__ == "__main__":
-    example_input = "..\\Example_FASTA\\gene.fna"
+def run_example():
+    example_input = "../Example_FASTA/gene.fna"
 
     example_sequences = read_sequences(example_input)
     reads = generate_reads(example_sequences[1][1])
 
     write_fastq(reads, "simulated_reads.fastq")
+    print("finished reading and output to file")
