@@ -36,11 +36,11 @@ def generate_reads(sequence_header, sequence, read_length, coverage, error_rate=
             random.randint(20, 30) if random.random() < 0.1 else random.randint(30,40)
             for _ in range(len(read_seq_with_errors))
         ]
-
         # Creates a dictionary with id, description, sequence, quality scores
+        end_pos = start_pos + read_length
         read_record = {
              "id": f"{sequence_header}_read_{i + 1}",
-            "description": f"simulated_read start={start_pos} length={len(read_seq_with_errors)} coverage={coverage}",
+            "description": f"simulated_read start={start_pos + 1} end={end_pos} length={read_length} coverage={coverage}",
             "sequence": read_seq_with_errors,
             "qualities": qualities
         }
