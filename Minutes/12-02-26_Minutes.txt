@@ -1,0 +1,11 @@
+Rollover From Previous Week
+================================
+1. How to create synthetic sequences to use to test against (e.g. NanoSim)
+2. Research MUMmer 4, how it is used for alignment, how it works etc.
+3. Further research Illumina, PacBio, NanoPore. Including where they are weak/strong (e.g. Homopolymer runs in PacBio)
+
+Discussed Tasks to Complete
+================================
+1. Change from a list of lists to a dictionary when reading in headers and sequences -- {header: sequence}
+2. Discussed the implementation of coordinate tracking for read generation.
+3. Suggested to continue with command line interfacing.
