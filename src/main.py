@@ -2,7 +2,7 @@ import argparse
 import io_functions
 from simulators import RandomSimulator
 
-def run_example(read_length, coverage):
+def run_example(read_length, coverage, output_format):
     """The original run_example() refactored to use the simulator class"""
     example_input = "../Example_FASTA/gene.fna"
 
@@ -17,7 +17,13 @@ def run_example(read_length, coverage):
     reads = simulator.simulate_from_file(example_input, io_functions)
 
     # Write output
-    io_functions.write_fastq(reads, "simulated_reads.fastq")
+    if output_format == "fastq":
+        io_functions.write_fastq(reads, f"simulated_reads.{output_format}")
+    elif output_format == "fasta":
+        io_functions.write_fasta(reads, f"simulated_reads.{output_format}")
+    else:
+        print("error")
+
 
     print(f"Generated {len(reads)} reads using {simulator.get_platform_name()} simulator")
     print(f"Read length: {read_length}, Coverage: {coverage}x")
@@ -61,7 +67,8 @@ def main():
 
         run_example(
             coverage=args.coverage,
-            read_length=args.read_length
+            read_length=args.read_length,
+            output_format=args.format
         )
         print("reads generated")
 
