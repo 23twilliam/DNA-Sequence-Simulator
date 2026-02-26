@@ -1,16 +1,16 @@
 import argparse
 import io_functions
-from simulators import RandomSimulator
+from simulators import RandomSimulator, IlluminaSimulator
 
 def run_example(read_length, coverage, output_format):
     """The original run_example() refactored to use the simulator class"""
     example_input = "../Example_FASTA/gene.fna"
 
     # Create simulator instance
-    simulator = RandomSimulator(
+    simulator = IlluminaSimulator(
         read_length=read_length,
         coverage=coverage,
-        error_rate=0.001
+        profile_filename="simulators/illumina/profiler/illumina_profile.txt"
     )
 
     # Generate reads

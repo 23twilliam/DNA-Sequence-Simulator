@@ -28,7 +28,7 @@ class BaseSimulator(ABC):
         pass
 
     @abstractmethod
-    def generate_quality_scores(self, read_length: int) -> List[int]:
+    def generate_quality_scores(self, read: str) -> List[int]:
         """
         Generate quality scores for a read.
         Quality scores should be generated first because they will influence error injection probability.
@@ -95,10 +95,10 @@ class BaseSimulator(ABC):
             end_pos = start_pos + self.read_length
 
             # Extract original sequence
-            read_seq = sequence[start_pos:start_pos + self.read_length]
+            read_seq = sequence[start_pos:end_pos]
 
             # STEP 1: Generate quality scores
-            quality_scores = self.generate_quality_scores(len(read_seq))
+            quality_scores = self.generate_quality_scores(read_seq)
 
             # STEP 2: Use quality scores to guide error injection
             read_seq_with_errors, final_qualities, errors_injected = self.inject_errors(
