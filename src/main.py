@@ -10,7 +10,7 @@ def run_example(read_length, coverage, output_format):
     simulator = IlluminaSimulator(
         read_length=read_length,
         coverage=coverage,
-        profile_filename="simulators/illumina/profiler/illumina_profile.txt"
+        profile_filename="simulators/illumina/profiles/art_illumina_profile_hiseq.txt"
     )
 
     # Generate reads
