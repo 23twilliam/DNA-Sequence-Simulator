@@ -1,4 +1,5 @@
 import sys
+import os
 
 if len(sys.argv) != 3:
     print("Usage: python empDist.py freqFile outputFile")
@@ -53,7 +54,9 @@ with open(infile) as f:
 
 read_length = len(data["A"][0])
 
-with open(outfile, "a") as out:
+out_path = os.path.join("./profiles", os.path.basename(outfile))
+
+with open(out_path, "a") as out:
     # loop over the possible nucleotides
     for nuc in nucleotides:
         # loop over the possible positions
