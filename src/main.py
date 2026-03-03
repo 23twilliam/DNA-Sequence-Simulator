@@ -57,8 +57,15 @@ def main():
     parser.add_argument('-o', '--output', required=False,
                         help='Output file or directory path')
 
+    parser.add_argument('-m', '--model',
+                        choices=['art_illumina_profile_hiseq'],
+                        help='Illumina read model (default: art_illumina_profile_hiseq)')
 
     args = parser.parse_args()
+
+    # We should warn that they want to put in a profile or accept the default chosen option
+    # if args.platform == 'illumina' and args.model is NONE:
+    #     parser.error('-p illumina requires -m option')
 
     if args.command == 'run':
         if args.read_length == 150:  # default wasn't changed but nanopore and pacbio have longer reads
