@@ -64,6 +64,22 @@ class BaseSimulator(ABC):
         """
         return int((sequence_length * self.coverage) / self.read_length)
 
+    def calculate_gc_content(self, sequence: str) -> int:
+        """
+        Calculate the relative gc content of the sequence.
+        """
+        gc_count = sequence.count("G") + sequence.count("C")
+        gc_proportion = gc_count / len(sequence)
+
+        return gc_proportion
+
+    def reverse_compliment(self, sequence: str) -> str:
+        """
+        Return the reverse complement of sequence.
+        """
+        complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
+        return ''.join(complement[base] for base in reversed(sequence))
+
     def sample_position(self, sequence_length: int) -> int:
         """
         Sample a random starting position in the genome.
