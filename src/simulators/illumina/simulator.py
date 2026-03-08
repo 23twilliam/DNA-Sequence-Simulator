@@ -21,6 +21,21 @@ class IlluminaSimulator(BaseSimulator):
     def get_platform_name(self) -> str:
         return "Illumina Simulator"
 
+    # https://stackoverflow.com/questions/4664850/how-to-find-all-occurrences-of-a-substring
+
+    def find_all_ggc(self, sequence: str) -> List[int]:
+        """
+        Returns all the position of the patter "GGC" in the sequence.
+        :param sequence:
+        :return: list of indexes of the sequence where GGC can be found
+        """
+        i = sequence.find("GGC")
+        positions = []
+        while i != -1:
+            positions.append(i)
+            i = sequence.find("GGC", i+1)
+        return positions
+
     def load_quality_profile(self, filename: str) -> defaultdict[int, defaultdict[str, dict]]:
         data = defaultdict(lambda: defaultdict(dict))
         with open(filename, "r") as f:
