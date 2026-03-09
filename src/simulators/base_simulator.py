@@ -21,6 +21,7 @@ class BaseSimulator(ABC):
         self.coverage = coverage
         self.error_rate = error_rate
         self.bases = ['A', 'T', 'G', 'C']
+        self.sequence = None
 
     @abstractmethod
     def get_platform_name(self) -> str:
@@ -73,11 +74,12 @@ class BaseSimulator(ABC):
 
         return gc_proportion
 
-    def reverse_compliment(self, sequence: str) -> str:
+    def reverse_complement(self, sequence: str) -> str:
         """
         Return the reverse complement of sequence.
         """
-        complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
+        # TODO bitwise implementation?
+        complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'N': 'N'}
         return ''.join(complement[base] for base in reversed(sequence))
 
     def sample_position(self, sequence_length: int) -> int:
@@ -98,6 +100,7 @@ class BaseSimulator(ABC):
         Main read generation method.
         Quality scores -> Errors -> Output
         """
+        self.sequence = sequence
         sequence_len = len(sequence)
 
         if self.read_length > sequence_len:
