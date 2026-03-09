@@ -5,7 +5,7 @@ import random
 from collections import defaultdict
 
 class IlluminaSimulator(BaseSimulator):
-    def __init__(self, read_length: int, coverage: float, profile_filename: str, error_rate: float = 0.001):
+    def __init__(self, read_length: int, coverage: float, profile_filename: str, error_rate: float = 0.001, sequence: str = None):
         """
         Initialise simulator with the Illumina profile.
 
@@ -16,17 +16,60 @@ class IlluminaSimulator(BaseSimulator):
             error_rate: Base error rate (may be overridden by platform)
         """
         super().__init__(read_length, coverage, error_rate) # initialise BaseSimulator
+        self.sequence = sequence
         self.profile = self.load_quality_profile(profile_filename)
+        self.gc_content = self.calculate_gc_content(sequence)
+        self.sse_trigger_map = self.build_sse_trigger_map(sequence)
 
     def get_platform_name(self) -> str:
         return "Illumina Simulator"
 
     # https://stackoverflow.com/questions/4664850/how-to-find-all-occurrences-of-a-substring
 
+    def build_sse_trigger_map(self, sequence: str, impacted_area: int = 40) -> set:
+        ggc_positions = set()
+        for pos in self.find_all_ggc(sequence):
+            for i in range(pos, pos + impacted_area):
+                ggc_positions.add(i)
+
+        ir_positions = self.find_inverted_repeats(sequence)
+        return ggc_positions | ir_positions
+
+    def find_inverted_repeats(self, sequence: str, k: int = 9, window: int = 80, impacted_area: int = 40) -> set:
+        """
+        Identify positions in the sequence where inverted repeats exist within a sliding window. Marks the impact area downstream of each trigger.
+        Criteria for a valid trigger:
+        - Repeat must be longer than 8bp (k=9 minimum)
+        - Reverse complement must appear within +-40bp, instead of looking forward and backward, we just look forward
+         from the current position (80bp total window)
+        - Errors are in the 40 bases downstream of the trigger position
+        :param:
+            sequence: Input genome sequence
+            k: K-mer length (must be > 8bp per trigger)
+            window: Maximum distance to search for reverse complement
+            impacted_area: Number of bases downstream to mark
+
+        :return:Set of sequence positions flagged as active
+        """
+        trigger_positions = set()
+
+        for i in range(len(sequence) - k):
+            kmer = sequence[i:i + k]
+            reverse_comp = self.reverse_complement(kmer)
+
+            # Search only forward within the window the reverse complement must appear downstream of the sequence
+            search_window = sequence[i + k: i + k + window]
+
+            if reverse_comp in search_window:
+                for pos in range(i, i + impacted_area):
+                    trigger_positions.add(pos)
+
+        return trigger_positions
+
     def find_all_ggc(self, sequence: str) -> List[int]:
         """
         Returns all the position of the patter "GGC" in the sequence.
-        :param sequence:
+        :param: sequence: the original genome sequence
         :return: list of indexes of the sequence where GGC can be found
         """
         i = sequence.find("GGC")
