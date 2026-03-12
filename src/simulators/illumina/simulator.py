@@ -18,8 +18,8 @@ class IlluminaSimulator(BaseSimulator):
         super().__init__(read_length, coverage, error_rate) # initialise BaseSimulator
         self.sequence = sequence
         self.profile = self.load_quality_profile(profile_filename)
-        self.gc_content = self.calculate_gc_content(sequence)
-        self.sse_trigger_map = self.build_sse_trigger_map(sequence)
+        self.gc_content = None
+        self.sse_trigger_map = None
 
     def get_platform_name(self) -> str:
         return "Illumina Simulator"
@@ -35,13 +35,13 @@ class IlluminaSimulator(BaseSimulator):
         ir_positions = self.find_inverted_repeats(sequence)
         return ggc_positions | ir_positions
 
-    def find_inverted_repeats(self, sequence: str, k: int = 9, window: int = 80, impacted_area: int = 40) -> set:
+    def find_inverted_repeats(self, sequence: str, k: int = 9, window: int = 40, impacted_area: int = 40) -> set:
         """
         Identify positions in the sequence where inverted repeats exist within a sliding window. Marks the impact area downstream of each trigger.
         Criteria for a valid trigger:
         - Repeat must be longer than 8bp (k=9 minimum)
         - Reverse complement must appear within +-40bp, instead of looking forward and backward, we just look forward
-         from the current position (80bp total window)
+         from the current position (40bp total window)
         - Errors are in the 40 bases downstream of the trigger position
         :param:
             sequence: Input genome sequence
@@ -78,6 +78,15 @@ class IlluminaSimulator(BaseSimulator):
             positions.append(i)
             i = sequence.find("GGC", i+1)
         return positions
+
+    def generate_reads(self, sequence_header: str, sequence: str):
+        self.gc_content = self.calculate_gc_content(sequence)
+        self.sse_trigger_map = self.build_sse_trigger_map(sequence)
+        return super().generate_reads(sequence_header, sequence)
+
+    # TODO Implement
+    def find_homopolymer_runs(self, sequence: str) -> List[int]:
+        pass
 
     def load_quality_profile(self, filename: str) -> defaultdict[int, defaultdict[str, dict]]:
         data = defaultdict(lambda: defaultdict(dict))
