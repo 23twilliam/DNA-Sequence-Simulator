@@ -92,7 +92,7 @@ class IlluminaSimulator(BaseSimulator):
 
             :param:
                 sequence:   Input genome sequence
-                min_length: Minimum run length to record (default 4)
+                min_length: Minimum run length to record (default 3)
 
             :return:
                 Dict - start position;run length
