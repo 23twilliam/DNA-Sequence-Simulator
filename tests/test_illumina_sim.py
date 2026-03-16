@@ -63,7 +63,9 @@ def test_quality_length(qualities):
 def ggc_simulator():
 	profile = FILES_DIR / "art_illumina_profile_hiseq.txt"
 	gene = "AAAAA" + "GGC" + "A" * 100
-	return IlluminaSimulator(read_length=50, coverage=10.0, profile_filename=str(profile), sequence=gene)
+	simulator = IlluminaSimulator(read_length=50, coverage=10.0, profile_filename=str(profile), sequence=gene)
+	simulator.generate_reads("example", gene)
+	return simulator
 
 @pytest.fixture
 def ir_simulator():
@@ -71,7 +73,9 @@ def ir_simulator():
 	forward = "TTACGGTAA"
 	reverse_c = "TTACCGTAA"
 	gene = "AAAAA" + forward + "A" * 20 + reverse_c + "A" * 100
-	return IlluminaSimulator(read_length=50, coverage=10.0, profile_filename=str(profile), sequence=gene)
+	simulator = IlluminaSimulator(read_length=50, coverage=10.0, profile_filename=str(profile), sequence=gene)
+	simulator.generate_reads("example", gene)
+	return simulator
 
 @pytest.fixture
 def combined_simulator():
@@ -79,7 +83,9 @@ def combined_simulator():
 	forward = "TTACGGTAA"
 	reverse_c = "TTACCGTAA"
 	gene = "AAAGGC" + forward + "A" * 20 + reverse_c + "A" * 100
-	return IlluminaSimulator(read_length=50, coverage=10.0, profile_filename=str(profile), sequence=gene)
+	simulator = IlluminaSimulator(read_length=10, coverage=30.0, profile_filename=str(profile), sequence=gene)
+	simulator.generate_reads("example", gene)
+	return simulator
 
 
 def test_ggc_trigger(ggc_simulator):
@@ -101,3 +107,23 @@ def test_combined_trigger(combined_simulator):
 	assert 3 in combined_simulator.sse_trigger_map
 	assert 6 in combined_simulator.sse_trigger_map
 	assert 2 not in combined_simulator.sse_trigger_map  # before trigger
+
+@pytest.fixture
+def homopolymer_simulator():
+	profile = FILES_DIR / "art_illumina_profile_hiseq.txt"
+	gene = "CTCAAAAGTCTAGAGCCACCGTCCAGGGAGCAGGTAGCTGCTGGGCTCCGGGGACACTTTGCGTTCGGGC"
+	simulator = IlluminaSimulator(read_length=10, coverage=30.0, profile_filename=str(profile), sequence=gene)
+	simulator.generate_reads("example", gene)
+	return simulator
+
+def test_homopolymers(homopolymer_simulator):
+	expected = {
+		3: 4,
+		25: 3,
+		42: 3,
+		49: 4,
+		57: 3,
+		66: 3,
+	}
+
+	assert homopolymer_simulator.homopolymer_map == expected
