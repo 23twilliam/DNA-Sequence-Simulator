@@ -9,7 +9,7 @@ class IlluminaSimulator(BaseSimulator):
         """
         Initialise simulator with the Illumina profile.
 
-        Args:
+        :param:
             read_length: Length of reads to generate
             coverage: Desired coverage depth
             profile_filename: file containing the quality profile
@@ -20,6 +20,7 @@ class IlluminaSimulator(BaseSimulator):
         self.profile = self.load_quality_profile(profile_filename)
         self.gc_content = None
         self.sse_trigger_map = None
+        self.hompolymer_map = None
 
     def get_platform_name(self) -> str:
         return "Illumina Simulator"
@@ -82,11 +83,36 @@ class IlluminaSimulator(BaseSimulator):
     def generate_reads(self, sequence_header: str, sequence: str):
         self.gc_content = self.calculate_gc_content(sequence)
         self.sse_trigger_map = self.build_sse_trigger_map(sequence)
+        self.homopolymer_map = self.find_homopolymer_runs(sequence)
         return super().generate_reads(sequence_header, sequence)
 
-    # TODO Implement
-    def find_homopolymer_runs(self, sequence: str) -> List[int]:
-        pass
+    def find_homopolymer_runs(self, sequence: str, min_length: int = 3) -> Dict[int, int]:
+        """
+            Identify homopolymer runs in the sequence.
+
+            :param:
+                sequence:   Input genome sequence
+                min_length: Minimum run length to record (default 4)
+
+            :return:
+                Dict - start position;run length
+                e.g. {12: 6, 40: 5} means a run of 6 at pos 12, run of 5 at pos 40
+            """
+        homopolymer_map = {}
+        i = 0
+        while i < len(sequence):
+            base = sequence[i]
+            run_start = i
+
+            while i < len(sequence) and sequence[i] == base:
+                i += 1
+
+            run_length = i - run_start
+
+            if run_length >= min_length:
+                homopolymer_map[run_start] = run_length
+        return homopolymer_map
+
 
     def load_quality_profile(self, filename: str) -> defaultdict[int, defaultdict[str, dict]]:
         data = defaultdict(lambda: defaultdict(dict))
