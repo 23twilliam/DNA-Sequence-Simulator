@@ -1,20 +1,23 @@
 import argparse
 import io_functions
 from simulators import RandomSimulator, IlluminaSimulator
+import time
 
 def run_example(read_length, coverage, output_format):
     """The original run_example() refactored to use the simulator class"""
-    example_input = "../Example_FASTA/gene.fna"
+    example_input = "../Example_FASTA/GCF_000005845.2_ASM584v2_genomic.fna"
 
     # Create simulator instance
     simulator = IlluminaSimulator(
         read_length=read_length,
         coverage=coverage,
-        profile_filename="simulators/illumina/profiles/art_illumina_profile_hiseq.txt"
+        profile_filename="simulators/illumina/profiles/ecoli_hiseqR1.txt"
     )
 
     # Generate reads
+    start = time.time()
     reads = simulator.simulate_from_file(example_input, io_functions)
+    elapsed = time.time() - start
 
     # Write output
     if output_format == "fastq":
@@ -27,6 +30,7 @@ def run_example(read_length, coverage, output_format):
 
     print(f"Generated {len(reads)} reads using {simulator.get_platform_name()} simulator")
     print(f"Read length: {read_length}, Coverage: {coverage}x")
+    print(f"Simulation took {elapsed:.2f}s ({elapsed / len(reads) * 1000:.3f}ms per read)")
 
 def main():
     # for all commands marked as required=False they must be changed to True
@@ -43,8 +47,8 @@ def main():
                         default='illumina',
                         help='Sequencing platform (default: illumina)')
 
-    parser.add_argument('-l', '--read_length', type=int, default=150,
-                        help='Read length in base pairs (default: 150)')
+    parser.add_argument('-l', '--read_length', type=int, default=100,
+                        help='Read length in base pairs (default: 100)')
 
     parser.add_argument('-c', '--coverage', type=int, default=30,
                         help='Coverage depth (default: 30)')
