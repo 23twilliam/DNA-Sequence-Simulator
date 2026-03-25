@@ -16,7 +16,7 @@ data = {nuc: [] for nuc in nucleotides}
 
 with open(infile) as f:
     for count, line in enumerate(f):
-        if 1<= count <= NUM_QUAL:
+        if 2<= count <= NUM_QUAL + 1:
             values = list(map(int, line.strip().split("\t"))) # strip line into its elements eg 1   1 becomes 1,1. then
             # map them to an int. then put that into a list.
 
@@ -54,8 +54,8 @@ with open(infile) as f:
 
 read_length = len(data["A"][0])
 
-out_path = os.path.join("./profiles", os.path.basename(outfile))
-
+out_path = os.path.join(".\profiles", os.path.basename(outfile))
+os.makedirs("./profiles", exist_ok=True)
 with open(out_path, "a") as out:
     # loop over the possible nucleotides
     for nuc in nucleotides:
