@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple
 import random
 from collections import defaultdict
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
     "A": (["C", "G", "T"], [0.04, 0.07, 0.07]),
@@ -12,32 +13,189 @@ SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
     "T": (["A", "C", "G"], [0.07, 0.04, 0.07]),
 }
 
-PREPHASE_PROB = {1: 0.64, 2: 0.71, 3: 0.79, 4: 0.86}
+PREPHASE_PROB = {1: 0.64, 2: 0.77, 3: 0.80, 4: 0.84}
 PREPHASE_MAX = 0.86
-LAGGING_PROB = 0.56
+LAGGING_PROB = 0.565 # avg of 49-64%
 DEPHASING_RATE = 0.0515
-HOMOPOLYMER_DECAY = 0.5  # TODO Double check research for better decay rate
-SSE_LOW, SSE_HIGH = 3, 9
+HOMOPOLYMER_DECAY = 2  # TODO Double check research for better decay rate
+SSE_LOW, SSE_HIGH = 5, 12
+
+
+def inject_errors(
+        sequence: str, quality_scores: List[int], start_pos: int, strand: str, is_dephased: bool,
+        sse_trigger_map: Dict[int, str], homopolymer_pos: Dict[int, int]) \
+        -> Tuple[str, List[int], List[Dict]]:
+    read_list = list(sequence)
+    errors_injected = []
+
+    for i in range(len(read_list)):
+        error_probability = 10 ** (-quality_scores[i] / 10.0)
+        if random.random() >= error_probability:
+            continue
+
+        original_base = read_list[i]
+        mutated_base = None
+        mode = "background"
+
+        if is_dephased:
+
+            # Mode A Lagging
+            if sse_trigger_map.get(start_pos + i) == strand:
+                if random.random() < LAGGING_PROB:
+                    if i >= 2:
+                        candidate = sequence[i - random.choice([1, 2])]
+                    elif i == 1:
+                        candidate = sequence[0]
+                    else:
+                        candidate = None
+                    if candidate and candidate != original_base:
+                        mutated_base = candidate
+                        mode = "lagging"
+
+            # Mode B Pre-phasing
+            if mutated_base is None:
+                run_len = homopolymer_pos.get(start_pos + i, 0)
+                if run_len > 0 and i + 1 < len(sequence):
+                    p = PREPHASE_PROB.get(run_len, PREPHASE_MAX)
+                    next_base = sequence[i + 1]
+                    if next_base != original_base and random.random() < p:
+                        mutated_base = next_base
+                        mode = "prephasing"
+
+        # Mode C Background
+        if mutated_base is None:
+            mutated_base = weighted_substitution(original_base)
+            mode = "background"
+
+        read_list[i] = mutated_base
+        errors_injected.append({
+            'position': i,
+            'type': 'substitution',
+            'mode': mode,
+            'original': original_base,
+            'mutated': mutated_base,
+            'quality': quality_scores[i],
+        })
+
+    read_seq_with_errors = ''.join(read_list)
+    quality_out = list(quality_scores)
+
+    if is_dephased:
+        prephase_count = sum(1 for e in errors_injected if e["mode"] == "prephasing")
+        if prephase_count >= 3:
+            trim = random.randint(1, 3)
+            read_seq_with_errors = read_seq_with_errors[:-trim]
+            quality_out = quality_out[:-trim]
+
+    return read_seq_with_errors, quality_out, errors_injected
+
+def weighted_substitution(original: str) -> str:
+    keys, weights = SUBST_CHOICES[original]
+    return random.choices(keys, weights=weights, k=1)[0]
+
+
+def generate_quality_scores(
+        read_seq: str, start_pos: int, strand: str, is_dephased: bool,
+        profile, sse_trigger_map: Dict[int, str], homopolymer_pos: Dict[int, int]) -> List[int]:
+    qualities = []
+
+    for idx, base in enumerate(read_seq):
+        genome_pos = start_pos + idx
+        scores = profile[idx][base]["scores"]
+        cumulative = profile[idx][base]["cumulative"]
+        total = profile[idx][base]["total"]
+
+        r = random.uniform(0, total)
+        score_idx = min(bisect.bisect_left(cumulative, r), len(scores) - 1)
+        q = scores[score_idx]
+
+        # SSE Penalty
+        trigger_strand = sse_trigger_map.get(genome_pos)
+        if is_dephased and trigger_strand == strand:
+            q = q - random.randint(SSE_LOW, SSE_HIGH)
+
+        # Homopolymer
+        run_length = homopolymer_pos.get(genome_pos, 0)
+        if run_length > 1:
+            q = q - int((run_length - 1) * HOMOPOLYMER_DECAY)
+
+        qualities.append(max(2, q))
+
+    return qualities
+
+
+def _simulate_batch(
+    batch_indices,
+    sequence_header,
+    sequence,
+    read_length,
+    coverage,
+    platform_name,
+    profile,
+    sse_trigger_map,
+    homopolymer_pos,
+    reverse_complement_fn):
+
+    seq_len = len(sequence)
+    reads = []
+
+    for i in batch_indices:
+        start_pos = random.randint(0, seq_len - read_length)
+        end_pos = start_pos + read_length
+        strand = random.choice(['F', 'R'])
+        is_dephased = random.random() < DEPHASING_RATE
+
+        read_seq = sequence[start_pos:end_pos]
+        if strand == 'R':
+            read_seq = reverse_complement_fn(read_seq)
+
+        quality_scores = generate_quality_scores(
+            read_seq, start_pos, strand, is_dephased,
+            profile, sse_trigger_map, homopolymer_pos
+        )
+        read_seq_with_errors, final_qualities, errors_injected = inject_errors(
+            read_seq, quality_scores, start_pos, strand, is_dephased,
+            sse_trigger_map, homopolymer_pos
+        )
+
+        reads.append({
+            "id": f"{sequence_header}_read_{i + 1}",
+            "description": (
+                f"simulated_read platform={platform_name} "
+                f"start={start_pos + 1} end={end_pos} "
+                f"length={len(read_seq_with_errors)} coverage={coverage}"
+            ),
+            "sequence": read_seq_with_errors,
+            "qualities": final_qualities,
+            "true_start": start_pos + 1,
+            "true_end": end_pos,
+            "errors": errors_injected,
+        })
+
+    return reads
 
 
 class IlluminaSimulator(BaseSimulator):
-    def __init__(self, read_length: int, coverage: float, profile_filename: str, error_rate: float = 0.001, sequence: str = None):
+    def __init__(self, read_length: int, coverage: float, profile_filename: str,
+                 error_rate: float = 0.001, sequence: str = None,
+                 num_workers: int = None, batch_size: int = 5000):
         """
         Initialise simulator with the Illumina profile.
 
         :param:
-            read_length: Length of reads to generate
-            coverage: Desired coverage depth
-            profile_filename: file containing the quality profile
-            error_rate: Base error rate (may be overridden by platform)
+            read_length:      Length of reads to generate
+            coverage:         Desired coverage depth
+            profile_filename: File containing the quality profile
+            error_rate:       Base error rate (may be overridden by platform)
+            num_workers:      Number of worker processes (default: os.cpu_count())
+            batch_size:       Reads per worker batch (default: 5000)
         """
-        super().__init__(read_length, coverage, error_rate) # initialise BaseSimulator
-        self.sequence = sequence
+        super().__init__(read_length, coverage, error_rate)
         self.profile = self.load_quality_profile(profile_filename)
         self.gc_content = None
         self.sse_trigger_map = None
-        self.current_strand = 'F'
-        self.current_is_dephased = False
+        self.num_workers = num_workers
+        self.batch_size = batch_size
 
     def get_platform_name(self) -> str:
         return "Illumina Simulator"
@@ -101,45 +259,41 @@ class IlluminaSimulator(BaseSimulator):
         print(f"SSE map built in {time.time() - start:.2f}s")
         self.homopolymer_pos = self.find_homopolymer_runs(sequence)
 
-        # loop here is identical to BaseSimulator.generate_reads except
-        # for the three lines that set per-read state
         sequence_len = len(sequence)
         if self.read_length > sequence_len:
             raise ValueError('Read length exceeds sequence length')
 
         num_reads = self.calculate_num_reads(sequence_len)
-        reads = []
 
-        for i in range(num_reads):
-            start_pos = self.sample_position(sequence_len)
-            end_pos = start_pos + self.read_length
+        all_reads = list(range(num_reads))
+        batches = [
+            all_reads[i:i + self.batch_size]
+            for i in range(0, num_reads, self.batch_size)
+        ]
 
-            self.current_strand = random.choice(['F', 'R'])
-            self.current_is_dephased = random.random() < DEPHASING_RATE
-
-            read_seq = sequence[start_pos:end_pos]
-            if self.current_strand == 'R':
-                read_seq = self.reverse_complement(read_seq)
-
-            quality_scores = self.generate_quality_scores(read_seq, start_pos)
-            read_seq_with_errors, final_qualities, errors_injected = self.inject_errors(
-                read_seq, quality_scores, start_pos
+        worker_args = [
+            (
+                batch,
+                sequence_header,
+                sequence,
+                self.read_length,
+                self.coverage,
+                self.get_platform_name(),
+                self.profile,
+                self.sse_trigger_map,
+                self.homopolymer_pos,
+                self.reverse_complement,
             )
+            for batch in batches
+        ]
 
-            reads.append({
-                "id": f"{sequence_header}_read_{i + 1}",
-                "description": (
-                    f"simulated_read platform={self.get_platform_name()} "
-                    f"start={start_pos + 1} end={end_pos} "
-                    f"length={len(read_seq_with_errors)} coverage={self.coverage}"
-                ),
-                "sequence": read_seq_with_errors,
-                "qualities": final_qualities,
-                "true_start": start_pos + 1,
-                "true_end": end_pos,
-                "errors": errors_injected,
-            })
+        reads = []
+        with ProcessPoolExecutor(max_workers=self.num_workers) as pool:
+            futures = [pool.submit(_simulate_batch, *args) for args in worker_args]
+            for future in as_completed(futures):
+                reads.extend(future.result())
 
+        reads.sort(key=lambda r: int(r["id"].rsplit("_", 1)[-1]))
         return reads
 
     def find_homopolymer_runs(self, sequence: str, min_length: int = 3) -> Dict[int, int]:
@@ -168,11 +322,7 @@ class IlluminaSimulator(BaseSimulator):
 
         return homopolymer_pos
 
-    def weighted_substitution(self, original: str) -> str:
-        keys, weights = SUBST_CHOICES[original]
-        return random.choices(keys, weights=weights, k=1)[0]
-
-    def load_quality_profile(self, filename: str) -> defaultdict[int, defaultdict[str, dict]]:
+    def load_quality_profile(self, filename: str) -> dict[int, dict[str, dict]]:
         data = defaultdict(lambda: defaultdict(dict))
         with open(filename, "r") as f:
             lines = f.readlines()
@@ -213,96 +363,16 @@ class IlluminaSimulator(BaseSimulator):
                 "total": total
             }
 
-        return data
+        return {pos: dict(bases) for pos, bases in data.items()}
 
-    def generate_quality_scores(self, read_seq: str, start_pos: int) -> List[int]:
-        qualities = []
+    def generate_quality_scores(self, read_seq, start_pos, strand, is_dephased):
+        return generate_quality_scores(
+            read_seq, start_pos, strand, is_dephased,
+            self.profile, self.sse_trigger_map, self.homopolymer_pos
+        )
 
-        for idx, base in enumerate(read_seq):
-            genome_pos = start_pos + idx
-            scores = self.profile[idx][base]["scores"]
-            cumulative = self.profile[idx][base]["cumulative"]
-            total = self.profile[idx][base]["total"]
-
-            r = random.uniform(0, total)
-            score_idx = min(bisect.bisect_left(cumulative, r), len(scores) - 1)
-            q = scores[score_idx]
-
-            # SSE Penalty
-            trigger_strand = self.sse_trigger_map.get(genome_pos)
-            if self.current_is_dephased and trigger_strand == self.current_strand:
-                q = q - random.randint(SSE_LOW, SSE_HIGH)
-
-            # Homopolymer
-            run_length = self.homopolymer_pos.get(genome_pos, 0)
-            if run_length > 1:
-                q = q - int((run_length - 1) * HOMOPOLYMER_DECAY)
-
-            qualities.append(max(2, q))
-
-        return qualities
-
-    def inject_errors(self, sequence: str, quality_scores: List[int], start_pos: int) -> Tuple[str, List[int], List[Dict]]:
-        read_list = list(sequence)
-        errors_injected = []
-
-        for i in range(len(read_list)):
-            error_probability = self.quality_to_error_probability(quality_scores[i])
-            if random.random() >= error_probability:
-                continue
-
-            original_base = read_list[i]
-            mutated_base = None
-            mode = "background"
-
-            if self.current_is_dephased:
-
-                # Mode A — Lagging
-                if self.sse_trigger_map.get(start_pos + i) == self.current_strand:
-                    if random.random() < LAGGING_PROB:
-                        if i >= 2:
-                            candidate = sequence[i - random.choice([1, 2])]
-                        elif i == 1:
-                            candidate = sequence[0]
-                        else:
-                            candidate = None
-                        if candidate and candidate != original_base:
-                            mutated_base = candidate
-                            mode = "lagging"
-
-                # Mode B — Pre-phasing
-                if mutated_base is None:
-                    run_len = self.homopolymer_pos.get(start_pos + i, 0)
-                    if run_len > 0 and i + 1 < len(sequence):
-                        p = PREPHASE_PROB.get(run_len, PREPHASE_MAX)
-                        next_base = sequence[i + 1]
-                        if next_base != original_base and random.random() < p:
-                            mutated_base = next_base
-                            mode = "prephasing"
-
-            # Mode C — Background
-            if mutated_base is None:
-                mutated_base = self.weighted_substitution(original_base)
-                mode = "background"
-
-            read_list[i] = mutated_base
-            errors_injected.append({
-                'position': i,
-                'type': 'substitution',
-                'mode': mode,
-                'original': original_base,
-                'mutated': mutated_base,
-                'quality': quality_scores[i],
-            })
-
-        read_seq_with_errors = ''.join(read_list)
-        quality_out = list(quality_scores)
-
-        if self.current_is_dephased:
-            prephase_count = sum(1 for e in errors_injected if e["mode"] == "prephasing")
-            if prephase_count >= 3:
-                trim = random.randint(1, 3)
-                read_seq_with_errors = read_seq_with_errors[:-trim]
-                quality_out = quality_out[:-trim]
-
-        return read_seq_with_errors, quality_out, errors_injected
+    def inject_errors(self, sequence, quality_scores, start_pos, strand, is_dephased):
+        return inject_errors(
+            sequence, quality_scores, start_pos, strand, is_dephased,
+            self.sse_trigger_map, self.homopolymer_pos
+        )
