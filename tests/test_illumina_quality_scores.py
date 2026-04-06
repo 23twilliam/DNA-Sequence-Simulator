@@ -7,8 +7,8 @@ FILES_DIR = TEST_DIR / "test_files"
 
 def make_test_profile(read_length: int):
     """
-    Build a minimal test profile dict for testing.
-    Every position, every base returns the same fixed quality score.
+    Create a minimal test profile.
+    Every position and every base returns the same quality score.
     """
     profile = {}
     for pos in range(read_length):
