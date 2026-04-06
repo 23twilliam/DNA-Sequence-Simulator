@@ -119,6 +119,7 @@ def generate_quality_scores(
         if run_length > 1:
             q = q - int((run_length - 1) * HOMOPOLYMER_DECAY)
 
+        # Qualities should never go below 2 (Illumina only reports 2 or above)
         qualities.append(max(2, q))
 
     return qualities
