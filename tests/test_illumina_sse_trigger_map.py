@@ -12,29 +12,6 @@ def simulator():
     gene = "CTCAAAAGTCTAGAGCCACCGTCCAGGGAGCAGGTAGCTGCTGGGCTCCGGGGACACTTTGCGTTCGGGC"
     return IlluminaSimulator(read_length=100, coverage=30.0, profile_filename=str(profile), sequence=gene)
 
-
-# def test_read_length(simulator):
-#     assert simulator.read_length == 100
-
-########################################################################################################################
-
-# def test_profile_exists(simulator):
-# 	assert len(profile[0]["A"]) > 0
-#
-# def test_scores_parse_correctly(simulator):
-# 	assert profile[0]["A"]["scores"] == [10, 20, 30, 40]
-#
-# def test_cumulative_count(simulator):
-# 	assert profile[0]["."]["cumulative"] == [4, 12, 24, 40]
-# 	assert profile[0]["A"]["cumulative"] == [1, 3, 6, 10]
-#
-# def test_total(simulator):
-# 	profile = simulator.profile()
-# 	assert profile[0]["."]["total"] == 40
-# 	assert profile[0]["A"]["total"] == 10
-
-########################################################################################################################
-
 def test_empty_sequence_no_triggers(simulator):
     trigger_map = simulator.build_sse_trigger_map("AAAAAAAAAAAAAAAAAAAAAA")
     assert len(trigger_map) == 0

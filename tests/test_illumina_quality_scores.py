@@ -30,7 +30,6 @@ def test_quality_scores_correct_length():
     )
     assert len(scores) == len(seq)
 
-
 def test_quality_scores_minimum_floor():
     # Scores should never go below 2
     profile = make_test_profile(read_length=12)

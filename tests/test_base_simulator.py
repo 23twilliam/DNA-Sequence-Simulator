@@ -10,6 +10,27 @@ class Simulator(BaseSimulator):
 def sim():
     return Simulator(read_length=100, coverage=30)
 
+def test_read_length_exceeds_sequence(sim):
+    with pytest.raises(ValueError):
+        sim.generate_reads(sequence_header="test_seq", sequence="ATGC")
+
+def test_read_structure_complete(sim):
+    sequence = "ATGC" * 25
+    reads = sim.generate_reads(sequence_header="test_seq", sequence=sequence)
+    expected_keys = {'id', 'description', 'sequence', 'qualities', 'true_start', 'true_end', 'errors'}
+    for read in reads:
+        assert expected_keys.issubset(read.keys())
+
+def test_simulate_from_file(sim):
+    class MockIO:
+        def read_sequences(_):
+            sequence = "ATGC" * 25
+            return {"test_seq": sequence}
+
+    reads = sim.simulate_from_file(fasta_file="fake.fasta", io_functions=MockIO)
+    print(reads)
+    assert len(reads) > 0
+
 ########################################################################################################################
 
 # calculate_num_reads tests
