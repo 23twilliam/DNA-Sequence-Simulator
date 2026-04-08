@@ -1,5 +1,5 @@
 import pytest
-from src.simulators.illumina.simulator import generate_quality_scores
+from src.simulators.illumina.simulator import generate_quality_scores, IlluminaSimulator
 from pathlib import Path
 
 TEST_DIR = Path(__file__).resolve().parent
@@ -87,3 +87,18 @@ def test_strand_specificity_sse():
 
     # R-strand SSE should not affect F-strand quality
     assert scores_f == scores_no_sse
+
+def test_load_profile_raises_on_malformed_line(tmp_path):
+    profile_file = tmp_path / "bad_profile.txt"
+    profile_file.write_text("A\tNOT_AN_INT\t30\nA\t0\t100\n")
+
+    with pytest.raises(ValueError, match="Improper profile entry at line 1"):
+        IlluminaSimulator.load_quality_profile(self = None, filename= str(profile_file))
+
+
+def test_load_profile_valid_file(tmp_path):
+    profile_file = tmp_path / "profile.txt"
+    profile_file.write_text("A\t0\t30\t31\nA\t0\t100\t200\n")
+
+    profile = IlluminaSimulator.load_quality_profile(self = None, filename= str(profile_file))
+    assert profile[0]["A"]["total"] == 300

@@ -105,7 +105,7 @@ def generate_quality_scores(
         cumulative = profile[idx][base]["cumulative"]
         total = profile[idx][base]["total"]
 
-        r = random.uniform(0, total)
+        r = random.uniform(0, total - 1)
         score_idx = min(bisect.bisect_left(cumulative, r), len(scores) - 1)
         q = scores[score_idx]
 
@@ -343,8 +343,8 @@ class IlluminaSimulator(BaseSimulator):
                 position = int(score_line[1])
                 scores = list(map(int, score_line[2:]))
                 frequencies = list(map(int, freq_line[2:]))
-            except (ValueError, IndexError):
-                continue
+            except (ValueError):
+                raise ValueError(f"Improper profile entry at line {i + 1}")
 
             cumulative = []
             running_total = 0
