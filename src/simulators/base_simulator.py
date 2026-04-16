@@ -8,18 +8,16 @@ class BaseSimulator(ABC):
     Abstract base class for all sequencing platform simulators.
     """
 
-    def __init__(self, read_length: int, coverage: float, error_rate: float = 0.001):
+    def __init__(self, read_length: int, coverage: float):
         """
         Initialise simulator with basic parameters.
 
         Args:
             read_length: Length of reads to generate
             coverage: Desired coverage depth
-            error_rate: Base error rate (may be overridden by platform)
         """
         self.read_length = read_length
         self.coverage = coverage
-        self.error_rate = error_rate
         self.bases = ['A', 'T', 'G', 'C']
         self.sequence = None
 
@@ -65,7 +63,7 @@ class BaseSimulator(ABC):
         """
         return int((sequence_length * self.coverage) / self.read_length)
 
-    def calculate_gc_content(self, sequence: str) -> int:
+    def calculate_gc_content(self, sequence: str) -> float:
         """
         Calculate the relative gc content of the sequence.
         """

@@ -11,19 +11,20 @@ SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
     "C": (["A", "G", "T"], [0.13, 0.04, 0.11]),
     "G": (["A", "C", "T"], [0.07, 0.04, 0.11]),
     "T": (["A", "C", "G"], [0.07, 0.04, 0.07]),
+    "N": (["N"], [1.0]),
 }
 
 PREPHASE_PROB = {1: 0.64, 2: 0.77, 3: 0.80, 4: 0.84}
 PREPHASE_MAX = 0.86
 LAGGING_PROB = 0.565 # avg of 49-64%
-DEPHASING_RATE = 0.0515
+DEPHASING_RATE = 1.0 #0.0515
 HOMOPOLYMER_DECAY = 2  # TODO Double check research for better decay rate
 SSE_LOW, SSE_HIGH = 5, 12
 
 
 def inject_errors(
         sequence: str, quality_scores: List[int], start_pos: int, strand: str, is_dephased: bool,
-        sse_trigger_map: Dict[int, str], homopolymer_pos: Dict[int, int]) \
+        sse_trigger_map: Dict[int, Tuple[int, str]], homopolymer_pos: Dict[int, int]) \
         -> Tuple[str, List[int], List[Dict]]:
     read_list = list(sequence)
     errors_injected = []
@@ -38,9 +39,9 @@ def inject_errors(
         mode = "background"
 
         if is_dephased:
-
+            sse_data = sse_trigger_map.get(start_pos + i)
             # Mode A Lagging
-            if sse_trigger_map.get(start_pos + i) == strand:
+            if sse_data and sse_data[1] == strand:  # [1] is the index of the strand in the tuple
                 if random.random() < LAGGING_PROB:
                     if i >= 2:
                         candidate = sequence[i - random.choice([1, 2])]
@@ -95,33 +96,58 @@ def weighted_substitution(original: str) -> str:
 
 
 def generate_quality_scores(
-        read_seq: str, start_pos: int, strand: str, is_dephased: bool,
+        read_seq: str, start_pos: int, end_pos: int, strand: str, is_dephased: bool,
         profile, sse_trigger_map: Dict[int, str], homopolymer_pos: Dict[int, int]) -> List[int]:
     qualities = []
 
     for idx, base in enumerate(read_seq):
-        genome_pos = start_pos + idx
-        scores = profile[idx][base]["scores"]
-        cumulative = profile[idx][base]["cumulative"]
-        total = profile[idx][base]["total"]
+        if strand == 'F':
+            genome_pos = start_pos + idx
+        else:
+            # For reverse reads, index 0 is the end of the segment
+            genome_pos = end_pos - 1 - idx
+        # Added some robustness for when a profile is not complete in some way (found this by using N)
+        if idx not in profile or base not in profile[idx]:
+            scores, cumulative, total = [], [], 0
+        else:
+            scores = profile[idx][base]["scores"]
+            cumulative = profile[idx][base]["cumulative"]
+            total = profile[idx][base]["total"]
 
-        r = random.uniform(0, total - 1)
-        score_idx = min(bisect.bisect_left(cumulative, r), len(scores) - 1)
-        q = scores[score_idx]
+        if total == 0:
+            q_baseline = 38
+        else:
+            r = random.uniform(0, total - 1)
+            score_idx = min(bisect.bisect_left(cumulative, r), len(scores) - 1)
+            q_baseline = scores[score_idx]
+
+        q = q_baseline
 
         # SSE Penalty
-        trigger_strand = sse_trigger_map.get(genome_pos)
-        if is_dephased and trigger_strand == strand:
-            q = q - random.randint(SSE_LOW, SSE_HIGH)
+        sse_data = sse_trigger_map.get(genome_pos)  # gets (sse_start_pos, strand)
+        if is_dephased and sse_data:
+            sse_start_pos, trigger_strand = sse_data
+
+            if trigger_strand == strand:
+                # get distance from the start of the SSE
+                distance = genome_pos - sse_start_pos
+
+                # Calculate rephasing progress (how close we are to not being in trigger boundary)
+                # (0 at start, 1 at 40bp) basically it is fully unaffected 40bp away from the trigger. cannot be negative
+                # so we use abs()
+                rephase_progress = abs(distance / 40.0)
+                # Get value based on weighted random score and how far away it is from trigger
+                q_min = 2
+                q = int(q_min + (q_baseline - q_min) * rephase_progress) # Cast to int as Q scores can only be an integer
+
 
         # Homopolymer
         run_length = homopolymer_pos.get(genome_pos, 0)
         if run_length > 1:
-            q = q - int((run_length - 1) * HOMOPOLYMER_DECAY)
-
+            penalty = (run_length - 1) * HOMOPOLYMER_DECAY
+            q = q - penalty
         # Qualities should never go below 2 (Illumina only reports 2 or above)
         qualities.append(max(2, q))
-
     return qualities
 
 
@@ -151,7 +177,7 @@ def _simulate_batch(
             read_seq = reverse_complement_fn(read_seq)
 
         quality_scores = generate_quality_scores(
-            read_seq, start_pos, strand, is_dephased,
+            read_seq, start_pos, end_pos, strand, is_dephased,
             profile, sse_trigger_map, homopolymer_pos
         )
         read_seq_with_errors, final_qualities, errors_injected = inject_errors(
@@ -178,8 +204,7 @@ def _simulate_batch(
 
 class IlluminaSimulator(BaseSimulator):
     def __init__(self, read_length: int, coverage: float, profile_filename: str,
-                 error_rate: float = 0.001, sequence: str = None,
-                 num_workers: int = None, batch_size: int = 5000):
+                 num_workers: int = 8, batch_size: int = 5000):
         """
         Initialise simulator with the Illumina profile.
 
@@ -187,13 +212,11 @@ class IlluminaSimulator(BaseSimulator):
             read_length:      Length of reads to generate
             coverage:         Desired coverage depth
             profile_filename: File containing the quality profile
-            error_rate:       Base error rate (may be overridden by platform)
             num_workers:      Number of worker processes (default: os.cpu_count())
             batch_size:       Reads per worker batch (default: 5000)
         """
-        super().__init__(read_length, coverage, error_rate)
+        super().__init__(read_length, coverage)
         self.profile = self.load_quality_profile(profile_filename)
-        self.gc_content = None
         self.sse_trigger_map = None
         self.num_workers = num_workers
         self.batch_size = batch_size
@@ -203,34 +226,78 @@ class IlluminaSimulator(BaseSimulator):
 
     # https://stackoverflow.com/questions/4664850/how-to-find-all-occurrences-of-a-substring
 
-    def build_sse_trigger_map(self, sequence: str, impacted_area: int = 40) -> Dict[int, str]:
+    def build_sse_trigger_map(self, sequence: str) -> Dict[int, str]:
         trigger_map = {}
         seq_len = len(sequence)
+        IMPACT_ZONE = 40 # bp
 
-        def mark_area(start: int, strand: str):
+        def mark_area(sse_start_pos: int, strand: str):
+            """
+            Marks the 40bp zone starting AFTER the trigger.
+            """
             if strand == 'F':
-                for j in range(start + 1, min(start + impacted_area + 1, seq_len)):
-                    trigger_map[j] = 'F'
+                for j in range(sse_start_pos, min(sse_start_pos + IMPACT_ZONE, seq_len)):
+                    trigger_map[j] = (sse_start_pos, 'F')
             else:
-                for j in range(max(0, start - impacted_area), start):
-                    trigger_map[j] = 'R'
+                for j in range(max(0, sse_start_pos - IMPACT_ZONE), sse_start_pos):
+                    trigger_map[j] = (sse_start_pos, 'R')
 
         i = sequence.find("GGC")
         while i != -1:
-            mark_area(i, 'F')
+            # GGC ends at i + 3 so the SSE position starts at i + 3
+            mark_area(i + 3, 'F')
             i = sequence.find("GGC", i + 1)
 
-        # GCC = GGC on reverse strand
+        # GGC on forward = GCC on reverse.
         i = sequence.find("GCC")
         while i != -1:
-            mark_area(i + 2, 'R')
+            mark_area(i, 'R')
             i = sequence.find("GCC", i + 1)
+
+
+        i = sequence.find("GGT")
+        while i != -1:
+            # GGC ends at i + 3 so the SSE position starts at i + 3
+            mark_area(i + 3, 'F')
+            i = sequence.find("GGT", i + 1)
+
+        # GGT on forward = ACC on reverse.
+        i = sequence.find("ACC")
+        while i != -1:
+            mark_area(i, 'R')
+            i = sequence.find("ACC", i + 1)
+
+
+        i = sequence.find("GGG")
+        while i != -1:
+            # GGC ends at i + 3 so the SSE position starts at i + 3
+            mark_area(i + 3, 'F')
+            i = sequence.find("GGG", i + 1)
+
+        # GGG on forward = CCC on reverse.
+        i = sequence.find("CCC")
+        while i != -1:
+            mark_area(i, 'R')
+            i = sequence.find("CCC", i + 1)
+
+
+        i = sequence.find("CGG")
+        while i != -1:
+            # GGC ends at i + 3 so the SSE position starts at i + 3
+            mark_area(i + 3, 'F')
+            i = sequence.find("GGG", i + 1)
+
+        # CGG on forward = CCG on reverse.
+        i = sequence.find("CCG")
+        while i != -1:
+            mark_area(i, 'R')
+            i = sequence.find("CCC", i + 1)
 
         """
                 Identify positions in the sequence where inverted repeats exist within a sliding window. Marks the impact area downstream of each trigger.
                 Criteria for a valid trigger:
                 - Repeat must be longer than 8bp (k=9 minimum)
-                - Reverse complement must appear within +-40bp, instead of looking forward and backward, we just look forward
+                - Reverse complement must appear within +-40bp,
                  from the current position (40bp total window)
                 - Errors are in the 40 bases downstream of the trigger position
             k: K-mer length (must be > 8bp per trigger)
@@ -247,14 +314,14 @@ class IlluminaSimulator(BaseSimulator):
             reverse_comp = self.reverse_complement(kmer)
             for j in kmer_index.get(reverse_comp, []):
                 if i + k <= j <= i + k + window:
-                    mark_area(i, 'F')
+                    # For the forward trigger the SSE starts after the k-mer (i+k)
+                    mark_area(i + k, 'F')
+                    # For the reverse trigger the SSE starts before the k-mer (j)
                     mark_area(j, 'R')
                     break
-
         return trigger_map
 
     def generate_reads(self, sequence_header: str, sequence: str):
-        self.gc_content = self.calculate_gc_content(sequence)
         start = time.time()
         self.sse_trigger_map = self.build_sse_trigger_map(sequence)
         print(f"SSE map built in {time.time() - start:.2f}s")
@@ -366,9 +433,9 @@ class IlluminaSimulator(BaseSimulator):
 
         return {pos: dict(bases) for pos, bases in data.items()}
 
-    def generate_quality_scores(self, read_seq, start_pos, strand, is_dephased):
+    def generate_quality_scores(self, read_seq, start_pos, end_pos, strand, is_dephased):
         return generate_quality_scores(
-            read_seq, start_pos, strand, is_dephased,
+            read_seq, start_pos, end_pos, strand, is_dephased,
             self.profile, self.sse_trigger_map, self.homopolymer_pos
         )
 
