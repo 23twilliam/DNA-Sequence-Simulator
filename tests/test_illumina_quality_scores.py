@@ -102,3 +102,9 @@ def test_load_profile_valid_file(tmp_path):
 
     profile = IlluminaSimulator.load_quality_profile(self = None, filename= str(profile_file))
     assert profile[0]["A"]["total"] == 300
+
+def test_profile(tmp_path):
+    profile_file = FILES_DIR / "test_profile.txt"
+    profile = IlluminaSimulator.load_quality_profile(self = None, filename= str(profile_file))
+    print(profile)
+    assert profile[0]["A"]["total"] == 300
