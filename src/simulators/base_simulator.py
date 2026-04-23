@@ -1,3 +1,4 @@
+import math
 from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple
 import random
@@ -61,7 +62,7 @@ class BaseSimulator(ABC):
         """
         Calculate number of reads needed for desired coverage.
         """
-        return int((sequence_length * self.coverage) / self.read_length)
+        return math.ceil((sequence_length * self.coverage) / self.read_length)
 
     def calculate_gc_content(self, sequence: str) -> float:
         """
