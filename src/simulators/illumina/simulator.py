@@ -17,7 +17,7 @@ SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
 PREPHASE_PROB = {1: 0.64, 2: 0.77, 3: 0.80, 4: 0.84}
 PREPHASE_MAX = 0.86
 LAGGING_PROB = 0.565 # avg of 49-64%
-DEPHASING_RATE = 1.0 #0.0515
+DEPHASING_RATE = 0.0515
 HOMOPOLYMER_DECAY = 2  # TODO Double check research for better decay rate
 SSE_LOW, SSE_HIGH = 5, 12
 
@@ -285,7 +285,7 @@ class IlluminaSimulator(BaseSimulator):
         while i != -1:
             # GGC ends at i + 3 so the SSE position starts at i + 3
             mark_area(i + 3, 'F')
-            i = sequence.find("GGG", i + 1)
+            i = sequence.find("CGG", i + 1)
 
         # CGG on forward = CCG on reverse.
         i = sequence.find("CCG")
@@ -386,7 +386,7 @@ class IlluminaSimulator(BaseSimulator):
             run_length = i - run_start
             if run_length >= min_length:
                 for p in range(run_start, run_start + run_length):
-                    homopolymer_pos[p] = run_length
+                    homopolymer_pos[p] = run_length - (p - run_start)
 
         return homopolymer_pos
 
