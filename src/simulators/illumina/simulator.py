@@ -215,8 +215,7 @@ class IlluminaSimulator(BaseSimulator):
             num_workers:      Number of worker processes (default: os.cpu_count())
             batch_size:       Reads per worker batch (default: 5000)
         """
-        super().__init__(read_length, coverage)
-        self.profile = self.load_quality_profile(profile_filename)
+        super().__init__(read_length, coverage, profile_filename)
         self.sse_trigger_map = None
         self.num_workers = num_workers
         self.batch_size = batch_size
@@ -363,68 +362,6 @@ class IlluminaSimulator(BaseSimulator):
 
         reads.sort(key=lambda r: int(r["id"].rsplit("_", 1)[-1]))
         return reads
-
-    def find_homopolymer_runs(self, sequence: str, min_length: int = 3) -> Dict[int, int]:
-        """
-            Identify homopolymer runs in the sequence.
-
-            :param:
-                sequence:   Input genome sequence
-                min_length: Minimum run length to record (default 3)
-
-            :return:
-                Dict - start position;run length
-                e.g. {12: 6, 40: 5} means a run of 6 at pos 12, run of 5 at pos 40
-            """
-        homopolymer_pos = {}
-        i = 0
-        while i < len(sequence):
-            base = sequence[i]
-            run_start = i
-            while i < len(sequence) and sequence[i] == base:
-                i += 1
-            run_length = i - run_start
-            if run_length >= min_length:
-                for p in range(run_start, run_start + run_length):
-                    homopolymer_pos[p] = run_length - (p - run_start)
-
-        return homopolymer_pos
-
-    def load_quality_profile(self, filename: str) -> dict[int, dict[str, dict]]:
-        data = defaultdict(lambda: defaultdict(dict))
-        with open(filename, "r") as f:
-            lines = f.readlines()
-
-        for i in range(0, len(lines), 2):
-            if i+1 >= len(lines):
-                break
-
-            score_line = lines[i].strip().split("\t")
-            freq_line = lines[i+1].strip().split("\t")
-
-            if len(score_line) < 2 or len(freq_line) < 2:
-                continue
-
-            try:
-                base = score_line[0]
-                position = int(score_line[1])
-                scores = list(map(int, score_line[2:]))
-                cumulative = list(map(int, freq_line[2:]))
-            except (ValueError):
-                raise ValueError(f"Improper profile entry at line {i + 1}")
-
-            try:
-                total = cumulative[-1]
-            except IndexError:
-                total = 0
-
-            data[position][base] = {
-                "scores": scores,
-                "cumulative": cumulative,
-                "total": total
-            }
-
-        return {pos: dict(bases) for pos, bases in data.items()}
 
     def generate_quality_scores(self, read_seq, start_pos, end_pos, strand, is_dephased):
         return generate_quality_scores(
