@@ -409,16 +409,9 @@ class IlluminaSimulator(BaseSimulator):
                 base = score_line[0]
                 position = int(score_line[1])
                 scores = list(map(int, score_line[2:]))
-                frequencies = list(map(int, freq_line[2:]))
+                cumulative = list(map(int, freq_line[2:]))
             except (ValueError):
                 raise ValueError(f"Improper profile entry at line {i + 1}")
-
-            cumulative = []
-            running_total = 0
-
-            for freq in frequencies:
-                running_total += freq
-                cumulative.append(running_total)
 
             try:
                 total = cumulative[-1]
