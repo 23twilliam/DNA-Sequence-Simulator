@@ -1,6 +1,7 @@
 import math
 from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple
+from collections import defaultdict
 import random
 
 
@@ -9,7 +10,7 @@ class BaseSimulator(ABC):
     Abstract base class for all sequencing platform simulators.
     """
 
-    def __init__(self, read_length: int, coverage: float):
+    def __init__(self, read_length: int, coverage: float, profile_path: str):
         """
         Initialise simulator with basic parameters.
 
@@ -21,6 +22,7 @@ class BaseSimulator(ABC):
         self.coverage = coverage
         self.bases = ['A', 'T', 'G', 'C']
         self.sequence = None
+        self.profile = self.load_quality_profile(profile_path)
 
     @abstractmethod
     def get_platform_name(self) -> str:
@@ -94,6 +96,74 @@ class BaseSimulator(ABC):
         """
         return 10 ** (-quality_score / 10)
 
+    def find_homopolymer_runs(self, sequence: str, min_length: int = 3) -> Dict[int, int]:
+        """
+            Identify homopolymer runs in the sequence.
+
+            :param:
+                sequence:   Input genome sequence
+                min_length: Minimum run length to record (default 3)
+
+            :return:
+                Dict - start position;run length
+                e.g. {12: 6, 40: 5} means a run of 6 at pos 12, run of 5 at pos 40
+            """
+        homopolymer_pos = {}
+        i = 0
+        while i < len(sequence):
+            base = sequence[i]
+            run_start = i
+            while i < len(sequence) and sequence[i] == base:
+                i += 1
+            run_length = i - run_start
+            if run_length >= min_length:
+                for p in range(run_start, run_start + run_length):
+                    homopolymer_pos[p] = run_length - (p - run_start)
+
+        return homopolymer_pos
+
+    def load_quality_profile(self, filename: str) -> Dict:
+        """
+        Load empirical quality profile from file
+        Profile stores cumulative frequencies
+        :param filename: name of profile file
+        :return: dict with the structure of [pos][bas] = {scores, cumulative, total]
+        """
+        data = defaultdict(lambda: defaultdict(dict))
+        with open(filename, "r") as f:
+            lines = f.readlines()
+
+        for i in range(0, len(lines), 2):
+            if i+1 >= len(lines):
+                break
+
+            score_line = lines[i].strip().split("\t")
+            freq_line = lines[i+1].strip().split("\t")
+
+            if len(score_line) < 2 or len(freq_line) < 2:
+                continue
+
+            try:
+                base = score_line[0]
+                position = int(score_line[1])
+                scores = list(map(int, score_line[2:]))
+                cumulative = list(map(int, freq_line[2:]))
+            except (ValueError):
+                raise ValueError(f"Improper profile entry at line {i + 1}")
+
+            try:
+                total = cumulative[-1]
+            except IndexError:
+                total = 0
+
+            data[position][base] = {
+                "scores": scores,
+                "cumulative": cumulative,
+                "total": total
+            }
+
+        return {pos: dict(bases) for pos, bases in data.items()}
+
     def generate_reads(self, sequence_header: str, sequence: str) -> List[Dict]:
         """
         Main read generation method.
@@ -111,9 +181,11 @@ class BaseSimulator(ABC):
         for i in range(num_reads):
             start_pos = self.sample_position(sequence_len)
             end_pos = start_pos + self.read_length
-
-            # Extract original sequence
             read_seq = sequence[start_pos:end_pos]
+
+            strand = random.choice(['F', 'R'])
+            if strand == 'R':
+                read_seq = self.reverse_complement(read_seq)
 
             # STEP 1: Generate quality scores
             quality_scores = self.generate_quality_scores(read_seq)
