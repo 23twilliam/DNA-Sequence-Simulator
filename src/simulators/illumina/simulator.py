@@ -97,7 +97,7 @@ def weighted_substitution(original: str) -> str:
 
 def generate_quality_scores(
         read_seq: str, start_pos: int, end_pos: int, strand: str, is_dephased: bool,
-        profile, sse_trigger_map: Dict[int, str], homopolymer_pos: Dict[int, int]) -> List[int]:
+        profile: Dict, sse_trigger_map: Dict[int, str], homopolymer_pos: Dict[int, int]) -> List[int]:
     qualities = []
 
     for idx, base in enumerate(read_seq):
@@ -196,6 +196,7 @@ def _simulate_batch(
             "qualities": final_qualities,
             "true_start": start_pos + 1,
             "true_end": end_pos,
+            "strand": strand,
             "errors": errors_injected,
         })
 
