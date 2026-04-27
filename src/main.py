@@ -6,7 +6,7 @@ import time
 # Default profile paths per platform
 DEFAULT_PROFILES = {
     "illumina": "simulators/illumina/profiles/ecoli_hiseqR1.txt",
-    #"pacbio": "simulators/illumina/profiles/ecoli_hiseqR1.txt"
+    "pacbio": "simulators/illumina/profiles/ecoli_hiseqR1.txt"
 }
 
 # Default read lengths per platform
@@ -27,6 +27,13 @@ def build_simulator(platform, read_length, coverage, profile_path):
             coverage=coverage,
             profile_filename=profile_path
         )
+    elif platform == "pacbio":
+        return PacBioSimulator(
+            mean_read_length=read_length,
+            coverage=coverage,
+            profile_filename=profile_path,
+            cv=PACBIO_DEFAULT_CV,
+        )
     else:
         raise ValueError(f"Platform '{platform}' not yet implemented")
 
@@ -46,7 +53,10 @@ def run_simulation(platform, input_file, read_length, coverage, output_format, o
         return
 
     print(f"Generated {len(reads)} reads using {simulator.get_platform_name()} simulator")
-    print(f"Read length: {read_length}, Coverage: {coverage}x")
+    if platform == "pacbio":
+        print(f"Mean Read length: {read_length}, Coverage: {coverage}x")
+    else:
+        print(f"Read length: {read_length}, Coverage: {coverage}x")
     print(f"Simulation took {elapsed:.2f}s ({elapsed / len(reads) * 1000:.3f}ms per read)")
 
 def main():
