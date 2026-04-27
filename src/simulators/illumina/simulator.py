@@ -1,10 +1,10 @@
 import bisect
+import os
 from ..base_simulator import BaseSimulator
 from typing import List, Dict, Tuple
 import random
 from collections import defaultdict
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
     "A": (["C", "G", "T"], [0.04, 0.07, 0.07]),
@@ -204,7 +204,7 @@ def _simulate_batch(
 
 class IlluminaSimulator(BaseSimulator):
     def __init__(self, read_length: int, coverage: float, profile_filename: str,
-                 num_workers: int = 8, batch_size: int = 5000):
+                 num_workers: int = os.cpu_count(), batch_size: int = 5000):
         """
         Initialise simulator with the Illumina profile.
 
@@ -215,10 +215,31 @@ class IlluminaSimulator(BaseSimulator):
             num_workers:      Number of worker processes (default: os.cpu_count())
             batch_size:       Reads per worker batch (default: 5000)
         """
-        super().__init__(read_length, coverage, profile_filename)
+        super().__init__(read_length, coverage, profile_filename, num_workers, batch_size)
         self.sse_trigger_map = None
-        self.num_workers = num_workers
-        self.batch_size = batch_size
+
+    def _precompute(self, sequence: str) -> None:
+        start = time.time()
+        self.sse_trigger_map = self.build_sse_trigger_map(sequence)
+        self.homopolymer_pos = self.find_homopolymer_runs(sequence)
+        print(f"Illumina Precomputation took {time.time() - start:.2f}s")
+
+    def _get_worker_fn(self):
+        return _simulate_batch
+
+    def _get_worker_args(self, batch, sequence_header, sequence) -> tuple:
+        return (
+            batch,
+            sequence_header,
+            sequence,
+            self.read_length,
+            self.coverage,
+            self.get_platform_name(),
+            self.profile,
+            self.sse_trigger_map,
+            self.homopolymer_pos,
+            self.reverse_complement,
+        )
 
     def get_platform_name(self) -> str:
         return "Illumina Simulator"
@@ -319,49 +340,6 @@ class IlluminaSimulator(BaseSimulator):
                     mark_area(j, 'R')
                     break
         return trigger_map
-
-    def generate_reads(self, sequence_header: str, sequence: str):
-        start = time.time()
-        self.sse_trigger_map = self.build_sse_trigger_map(sequence)
-        print(f"SSE map built in {time.time() - start:.2f}s")
-        self.homopolymer_pos = self.find_homopolymer_runs(sequence)
-
-        sequence_len = len(sequence)
-        if self.read_length > sequence_len:
-            raise ValueError('Read length exceeds sequence length')
-
-        num_reads = self.calculate_num_reads(sequence_len)
-
-        all_reads = list(range(num_reads))
-        batches = [
-            all_reads[i:i + self.batch_size]
-            for i in range(0, num_reads, self.batch_size)
-        ]
-
-        worker_args = [
-            (
-                batch,
-                sequence_header,
-                sequence,
-                self.read_length,
-                self.coverage,
-                self.get_platform_name(),
-                self.profile,
-                self.sse_trigger_map,
-                self.homopolymer_pos,
-                self.reverse_complement,
-            )
-            for batch in batches
-        ]
-
-        reads = []
-        with ProcessPoolExecutor(max_workers=self.num_workers) as pool:
-            futures = [pool.submit(_simulate_batch, *args) for args in worker_args]
-            for future in as_completed(futures):
-                reads.extend(future.result())
-
-        reads.sort(key=lambda r: int(r["id"].rsplit("_", 1)[-1]))
-        return reads
 
     def generate_quality_scores(self, read_seq, start_pos, end_pos, strand, is_dephased):
         return generate_quality_scores(

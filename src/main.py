@@ -5,8 +5,7 @@ import time
 
 def run_example(read_length, coverage, output_format):
     """The original run_example() refactored to use the simulator class"""
-    example_input = "../Example_FASTA/gene.fna"
-    # example_input = "../Example_FASTA/GCF_000005845.2_ASM584v2_genomic.fna"
+    example_input = "../Example_FASTA/GCF_000005845.2_ASM584v2_genomic.fna"
 
     # Create simulator instance
     simulator = IlluminaSimulator(
