@@ -1,32 +1,49 @@
 import argparse
 import io_functions
-from simulators import RandomSimulator, IlluminaSimulator
+from simulators import IlluminaSimulator, PacBioSimulator
 import time
 
-def run_example(read_length, coverage, output_format):
-    """The original run_example() refactored to use the simulator class"""
-    example_input = "../Example_FASTA/GCF_000005845.2_ASM584v2_genomic.fna"
+# Default profile paths per platform
+DEFAULT_PROFILES = {
+    "illumina": "simulators/illumina/profiles/ecoli_hiseqR1.txt",
+    #"pacbio": "simulators/illumina/profiles/ecoli_hiseqR1.txt"
+}
 
-    # Create simulator instance
-    simulator = IlluminaSimulator(
-        read_length=read_length,
-        coverage=coverage,
-        profile_filename="simulators/illumina/profiles/ecoli_hiseqR1.txt"
-    )
+# Default read lengths per platform
+DEFAULT_READ_LENGTHS = {
+    "illumina": 150,
+    "pacbio": 15000,
+    "nanopore": 20000,
+}
+# PacBio length distribution coefficient of variation
+# TODO: check literature
+PACBIO_DEFAULT_CV = 0.3
 
-    # Generate reads
+def build_simulator(platform, read_length, coverage, profile_path):
+    """Construct the appropriate simulator for the chosen platform."""
+    if platform == "illumina":
+        return IlluminaSimulator(
+            read_length=read_length,
+            coverage=coverage,
+            profile_filename=profile_path
+        )
+    else:
+        raise ValueError(f"Platform '{platform}' not yet implemented")
+
+def run_simulation(platform, input_file, read_length, coverage, output_format, output_path, profile_path):
+    simulator = build_simulator(platform, read_length, coverage, profile_path)
+
     start = time.time()
-    reads = simulator.simulate_from_file(example_input, io_functions)
+    reads = simulator.simulate_from_file(input_file, io_functions)
     elapsed = time.time() - start
 
-    # Write output
     if output_format == "fastq":
-        io_functions.write_fastq(reads, f"simulated_reads.{output_format}")
+        io_functions.write_fastq(reads, output_path)
     elif output_format == "fasta":
-        io_functions.write_fasta(reads, f"simulated_reads.{output_format}")
+        io_functions.write_fasta(reads, output_path)
     else:
-        print("error")
-
+        print(f"Output format '{output_format}' not yet supported")
+        return
 
     print(f"Generated {len(reads)} reads using {simulator.get_platform_name()} simulator")
     print(f"Read length: {read_length}, Coverage: {coverage}x")
@@ -40,6 +57,7 @@ def main():
                         help='Command to execute program')
 
     parser.add_argument('-i', '--input', required=False,
+                        default="../Example_FASTA/GCF_000005845.2_ASM584v2_genomic.fna",
                         help='Input genome file (FASTA format)')
 
     parser.add_argument('-p', '--platform',
@@ -47,8 +65,8 @@ def main():
                         default='illumina',
                         help='Sequencing platform (default: illumina)')
 
-    parser.add_argument('-l', '--read_length', type=int, default=100,
-                        help='Read length in base pairs (default: 100)')
+    parser.add_argument('-l', '--read_length', type=int, default=None,
+                        help='Defaults vary by platform: 150 for Illumina, 15000 for PacBio, 20000 for Nanopore.')
 
     parser.add_argument('-c', '--coverage', type=int, default=30,
                         help='Coverage depth (default: 30)')
@@ -58,10 +76,13 @@ def main():
                         default='fastq',
                         help='Output format (default: fastq)')
 
-    parser.add_argument('-o', '--output', required=False,
+    parser.add_argument('-o', '--output',
+                        default='simulated_reads',
+                        required=False,
                         help='Output file or directory path')
 
-    parser.add_argument('-m', '--model',
+    parser.add_argument('--profile',
+                        default=None,
                         choices=['art_illumina_profile_hiseq'],
                         help='Illumina read model (default: art_illumina_profile_hiseq)')
 
@@ -71,15 +92,26 @@ def main():
     # if args.platform == 'illumina' and args.model is NONE:
     #     parser.error('-p illumina requires -m option')
 
-    if args.command == 'run':
-        if args.read_length == 150:  # default wasn't changed but nanopore and pacbio have longer reads
-            if args.platform in ['pacbio', 'nanopore']:
-                args.read_length = 10000
+    # Apply platform-specific default read length if user did not specify one
+    if args.read_length is None:
+        args.read_length = DEFAULT_READ_LENGTHS[args.platform]
 
-        run_example(
-            coverage=args.coverage,
+    # Apply platform-specific default profile if user did not specify one
+    profile_path = args.profile if args.profile else DEFAULT_PROFILES.get(args.platform)
+    if profile_path is None:
+        parser.error(f"No default profile available for {args.platform}; please supply --profile")
+
+    output_path = f"{args.output}.{args.format}"
+
+    if args.command == 'run':
+        run_simulation(
+            platform=args.platform,
+            input_file=args.input,
             read_length=args.read_length,
-            output_format=args.format
+            coverage=args.coverage,
+            output_format=args.format,
+            output_path=output_path,
+            profile_path=profile_path,
         )
         print("reads generated")
 
