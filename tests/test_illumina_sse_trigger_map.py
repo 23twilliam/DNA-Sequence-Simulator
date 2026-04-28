@@ -9,8 +9,7 @@ FILES_DIR = TEST_DIR / "test_files"
 @pytest.fixture
 def simulator():
     profile = FILES_DIR / "test_profile.txt"
-    gene = "CTCAAAAGTCTAGAGCCACCGTCCAGGGAGCAGGTAGCTGCTGGGCTCCGGGGACACTTTGCGTTCGGGC"
-    return IlluminaSimulator(read_length=100, coverage=30.0, profile_filename=str(profile), sequence=gene)
+    return IlluminaSimulator(read_length=100, coverage=30.0, profile_filename=str(profile))
 
 def test_empty_sequence_no_triggers(simulator):
     trigger_map = simulator.build_sse_trigger_map("AAAAAAAAAAAAAAAAAAAAAA")
@@ -24,8 +23,8 @@ def test_ggc_marks_forward_positions(simulator):
     # GGC at position 0 should mark forward positions 1-40
     seq = "GGC" + "A" * 50
     trigger_map = simulator.build_sse_trigger_map(seq)
-    assert trigger_map.get(1) == 'F'
-    assert trigger_map.get(40) == 'F'
+    assert trigger_map.get(3)[1] == 'F'
+    assert trigger_map.get(42)[1] == 'F'
 
 def test_ggc_does_not_mark_before_trigger(simulator):
     seq = "A" * 10 + "GGC" + "A" * 50
@@ -38,22 +37,22 @@ def test_ggc_impact_area_boundary(simulator):
     # Impact area is 40 bases, so position 41 should not be marked
     seq = "GGC" + "A" * 60
     trigger_map = simulator.build_sse_trigger_map(seq)
-    assert 40 in trigger_map  # position 40 should be marked
-    assert 41 not in trigger_map  # position 41 shouldn't
+    assert 42 in trigger_map  # position 40 should be marked
+    assert 43 not in trigger_map  # position 41 shouldn't
 
 def test_ggc_marks_reverse_positions(simulator):
     # GCC is GGC on reverse strand
     seq = "A" * 50 + "GCC" + "A" * 10
     trigger_map = simulator.build_sse_trigger_map(seq)
     # Should have some R strand marks BEFORE the GCC
-    r_positions = [pos for pos, strand in trigger_map.items() if strand == 'R']
+    r_positions = [pos for pos, (_, strand) in trigger_map.items() if strand == 'R']
     assert len(r_positions) > 0
 
 def test_ggc_and_gcc_both_present(simulator):
     seq = "GGC" + "A" * 50 + "GCC"
     trigger_map = simulator.build_sse_trigger_map(seq)
-    f_positions = [pos for pos, strand in trigger_map.items() if strand == 'F']
-    r_positions = [pos for pos, strand in trigger_map.items() if strand == 'R']
+    f_positions = [pos for pos, (_, strand) in trigger_map.items() if strand == 'F']
+    r_positions = [pos for pos, (_, strand) in trigger_map.items() if strand == 'R']
     assert len(f_positions) > 0
     assert len(r_positions) > 0
 

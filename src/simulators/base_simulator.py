@@ -11,7 +11,8 @@ class BaseSimulator(ABC):
     Abstract base class for all sequencing platform simulators.
     """
 
-    def __init__(self, read_length: int, coverage: float, profile_path: str, num_workers: int = os.cpu_count(), batch_size: int = 5000):
+    def __init__(self, read_length: int, coverage: float, profile_path: str, num_workers: int = os.cpu_count(),
+                 batch_size: int = 5000) -> None:
         """
         Initialise simulator with basic parameters.
 
@@ -252,6 +253,15 @@ class BaseSimulator(ABC):
         ]
 
         worker_fn = self._get_worker_fn()
+
+        if self.num_workers == 1:
+            reads = []
+            for batch in batches:
+                args = self._get_worker_args(batch, sequence_header, sequence)
+                reads.extend(worker_fn(*args))
+            reads.sort(key=lambda r: int(r["id"].rsplit("_", 1)[-1]))
+            return reads
+
         worker_args = [
             self._get_worker_args(batch, sequence_header, sequence)
             for batch in batches

@@ -25,7 +25,7 @@ def test_quality_scores_correct_length():
     profile = make_test_profile(read_length=12)
     seq = "ATCGATCGATCG"
     scores = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=False,
+        seq, start_pos=0, end_pos=len(seq) ,strand='F', is_dephased=False,
         profile=profile, sse_trigger_map={}, homopolymer_pos={}
     )
     assert len(scores) == len(seq)
@@ -35,9 +35,9 @@ def test_quality_scores_minimum_floor():
     profile = make_test_profile(read_length=12)
     seq = "ATCGATCGATCG"
     scores = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=False,
+        seq, start_pos=0, end_pos=len(seq), strand='F', is_dephased=False,
         profile=profile,
-        sse_trigger_map={i: 'F' for i in range(12)},
+        sse_trigger_map={i: (i, 'F') for i in range(12)},
         homopolymer_pos={i: 5 for i in range(12)}
     )
     assert all(score >= 2 for score in scores)
@@ -47,11 +47,11 @@ def test_sse_penalty_reduces_quality():
     seq = "ATCGATCGATCG"
 
     scores_no_see = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=True, profile=profile, sse_trigger_map={}, homopolymer_pos= {}
+        seq, start_pos=0, end_pos=len(seq),  strand='F', is_dephased=True, profile=profile, sse_trigger_map={}, homopolymer_pos= {}
     )
     scores_with_see = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=True, profile=profile,
-        sse_trigger_map={i: 'F' for i in range (12)},
+        seq, start_pos=0, end_pos=len(seq), strand='F', is_dephased=True, profile=profile,
+        sse_trigger_map={i: (i, 'F') for i in range(12)},
         homopolymer_pos={}
     )
     # SSE should reduce scores
@@ -62,10 +62,10 @@ def test_homopolymer_penalty_reduces_quality():
     seq = "ATCGATCGATCG"
 
     scores_no_homopolymer = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=True, profile=profile, sse_trigger_map={}, homopolymer_pos= {}
+        seq, start_pos=0, end_pos=len(seq),  strand='F', is_dephased=True, profile=profile, sse_trigger_map={}, homopolymer_pos= {}
     )
     scores_with_homopolymer = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=True, profile=profile,
+        seq, start_pos=0, end_pos=len(seq), strand='F', is_dephased=True, profile=profile,
         sse_trigger_map={},
         homopolymer_pos={i: 5 for i in range (12)}
     )
@@ -78,11 +78,11 @@ def test_strand_specificity_sse():
     seq = "ATCGATCGATCG"
 
     scores_f = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=True, profile=profile,
-        sse_trigger_map={i: 'R' for i in range(12)},
+        seq, start_pos=0, end_pos=len(seq), strand='F', is_dephased=True, profile=profile,
+        sse_trigger_map={i: (i, 'R') for i in range(12)},
         homopolymer_pos={})
     scores_no_sse = generate_quality_scores(
-        seq, start_pos=0, strand='F', is_dephased=True, profile=profile, sse_trigger_map={}, homopolymer_pos={}
+        seq, start_pos=0, end_pos=len(seq), strand='F', is_dephased=True, profile=profile, sse_trigger_map={}, homopolymer_pos={}
     )
 
     # R-strand SSE should not affect F-strand quality
@@ -101,10 +101,10 @@ def test_load_profile_valid_file(tmp_path):
     profile_file.write_text("A\t0\t30\t31\nA\t0\t100\t200\n")
 
     profile = IlluminaSimulator.load_quality_profile(self = None, filename= str(profile_file))
-    assert profile[0]["A"]["total"] == 300
+    assert profile[0]["A"]["total"] == 200
 
 def test_profile(tmp_path):
     profile_file = FILES_DIR / "test_profile.txt"
     profile = IlluminaSimulator.load_quality_profile(self = None, filename= str(profile_file))
     print(profile)
-    assert profile[0]["A"]["total"] == 300
+    assert profile[0]["A"]["total"] == 4

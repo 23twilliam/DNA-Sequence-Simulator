@@ -88,7 +88,7 @@ def test_depahsed_can_produce_lagging_errors():
     for _ in range(500):
         _, _, errors = inject_errors(
             sequence=seq, quality_scores=qualities, start_pos=0, strand='F', is_dephased=True,
-            sse_trigger_map={i: 'F' for i in range(12)},
+            sse_trigger_map={i: (i, 'F') for i in range(12)},
             homopolymer_pos={}
         )
         for error in errors:

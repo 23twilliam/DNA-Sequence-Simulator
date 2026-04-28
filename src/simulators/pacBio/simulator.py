@@ -1,13 +1,9 @@
 import bisect
 import math
 import os
-
-from fontTools.varLib.models import nonNone
-
 from ..base_simulator import BaseSimulator
 from typing import List, Dict, Tuple
 import random
-from collections import defaultdict
 import time
 
 # empirical PacBio error ratios (ono2022)

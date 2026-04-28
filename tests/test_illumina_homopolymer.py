@@ -9,8 +9,7 @@ FILES_DIR = TEST_DIR / "test_files"
 @pytest.fixture
 def simulator():
     profile = FILES_DIR / "test_profile.txt"
-    gene = "CTCAAAAGTCTAGAGCCACCGTCCAGGGAGCAGGTAGCTGCTGGGCTCCGGGGACACTTTGCGTTCGGGC"
-    return IlluminaSimulator(read_length=100, coverage=30.0, profile_filename=str(profile), sequence=gene)
+    return IlluminaSimulator(read_length=100, coverage=30.0, profile_filename=str(profile))
 
 def test_homopolymer_detects_run(simulator):
     # run of 7 starting at position 0
@@ -26,9 +25,9 @@ def test_homopolymer_min_length(simulator):
 def test_homopolymer_all_positions_in_run_marked(simulator):
     # Run of 5 A's all positions should be in dict
     result = simulator.find_homopolymer_runs("AAAAATCG")
+    start = 5
     for i in range(5):
-        assert i in result
-        assert result[i] == 5
+        assert result[i] == start - i
 
 def test_homopolymer_multiple_runs(simulator):
     result = simulator.find_homopolymer_runs("AAAATTTTT")
