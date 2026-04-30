@@ -112,3 +112,27 @@ def test_quality_to_error_probability(sim):
     assert sim.quality_to_error_probability(20) == pytest.approx(0.01)
     # Q10 should give 0.1
     assert sim.quality_to_error_probability(10) == pytest.approx(0.1)
+
+########################################################################################################################
+
+
+def test_load_profile_raises_on_malformed_line(sim, tmp_path):
+    profile_file = tmp_path / "bad_profile.txt"
+    profile_file.write_text("A\tNOT_AN_INT\t30\nA\t0\t100\n")
+
+    with pytest.raises(ValueError, match="Improper profile entry at line 1"):
+        sim.load_quality_profile(filename= str(profile_file))
+
+
+def test_load_profile_valid_file(sim, tmp_path):
+    profile_file = tmp_path / "profile.txt"
+    profile_file.write_text("A\t0\t30\t31\nA\t0\t100\t200\n")
+
+    profile = sim.load_quality_profile(filename= str(profile_file))
+    assert profile[0]["A"]["total"] == 200
+
+def test_profile(sim, tmp_path):
+    profile_file = FILES_DIR / "test_profile.txt"
+    profile = sim.load_quality_profile(filename= str(profile_file))
+    print(profile)
+    assert profile[0]["A"]["total"] == 4
