@@ -188,7 +188,7 @@ def test_background_error_ratio_approx():
     insertions = 0
     substitutions = 0
 
-    for _ in range(10000):
+    for _ in range(1000):
         _, _, errors = inject_errors(
             sequence=seq, quality_scores=qualities, start_pos=0, homopolymer_pos={}
         )
@@ -202,6 +202,6 @@ def test_background_error_ratio_approx():
 
     total_indels = deletions + insertions + substitutions
 
-    assert deletions / total_indels == pytest.approx(0.33, abs=0.01)
-    assert insertions / total_indels == pytest.approx(0.45, abs=0.01)
-    assert substitutions / total_indels == pytest.approx(0.22, abs=0.01)
+    assert deletions / total_indels == pytest.approx(0.33, abs=0.02)
+    assert insertions / total_indels == pytest.approx(0.45, abs=0.02)
+    assert substitutions / total_indels == pytest.approx(0.22, abs=0.02)

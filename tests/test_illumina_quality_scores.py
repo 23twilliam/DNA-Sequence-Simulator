@@ -1,5 +1,5 @@
 import pytest
-from src.simulators.illumina.simulator import generate_quality_scores, IlluminaSimulator
+from src.simulators.illumina.simulator import generate_quality_scores
 from pathlib import Path
 
 TEST_DIR = Path(__file__).resolve().parent

@@ -51,37 +51,6 @@ class BaseSimulator(ABC):
         """Return platform name (e.g. 'Illumina', 'PacBio', 'Nanopore')"""
         pass
 
-    @abstractmethod
-    def generate_quality_scores(self, read: str) -> List[int]:
-        """
-        Generate quality scores for a read.
-        Quality scores should be generated first because they will influence error injection probability.
-
-        Returns:
-            List of quality scores (Phred scale)
-        """
-        pass
-
-    @abstractmethod
-    def inject_errors(self, sequence: str, quality_scores: List[int]) -> Tuple[str, List[int], List[Dict]]:
-        """
-        Inject sequencing errors into read based on quality scores.
-        Errors should be informed by quality scores
-        - Lower quality positions -> higher error probability
-        - Insertions/deletions will change sequence length -> quality list must adjust
-
-        Args:
-            sequence: Original read sequence
-            quality_scores: Quality scores that guide error probability
-
-        Returns:
-            Tuple of:
-            - sequence_with_errors: Modified sequence
-            - adjusted_qualities: Quality scores
-            - errors_injected: List of errors for ground truth
-        """
-        pass
-
     def calculate_num_reads(self, sequence_length: int) -> int:
         """
         Calculate number of reads needed for desired coverage.
