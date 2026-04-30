@@ -10,7 +10,7 @@ import time
 STR_WEIGHTS_BY_LENGTH = {
     1: [0.05, 0.17, 0.78], # sub ins del
     2: [0.24, 0.30, 0.46],
-    3: [0.42, 0.27, 0.31],
+    3: [0.42, 0.27, 0.31]
 }
 
 BACKGROUND_WEIGHTS = [0.31, 0.30, 0.38]
@@ -22,7 +22,7 @@ SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
     "C": (["A", "G", "T"], [4, 1, 1]),
     "G": (["A", "C", "T"], [1, 1, 4]),
     "T": (["A", "C", "G"], [1, 4, 1]),
-    "N": (["N"], [1.0]),
+    "N": (["N"], [1.0])
 }
 
 DEFAULT_CV = 0.2
