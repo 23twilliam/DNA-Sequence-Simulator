@@ -68,7 +68,7 @@ def inject_errors(
     out_seq = []
     out_qual = []
     errors_injected = []
-    # WE have to append a lot in this because of insertions and deletions, let elegant than Illumina
+    # WE have to append a lot in this because of insertions and deletions, less elegant than Illumina
 
     for i, base in enumerate(sequence):
         error_probability = 10 ** (-quality_scores[i] / 10.0)
@@ -257,14 +257,4 @@ class PacBioSimulator(BaseSimulator):
             self.profile,
             self.homopolymer_pos,
             self.reverse_complement,
-        )
-
-    def generate_quality_scores(self, read_seq, start_pos, end_pos, strand):
-        return generate_quality_scores(
-            read_seq, start_pos, end_pos, strand, self.profile, self.homopolymer_pos
-        )
-
-    def inject_errors(self, sequence, quality_scores):
-        return inject_errors(
-            sequence, quality_scores, 0, self.homopolymer_pos
         )

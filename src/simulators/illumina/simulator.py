@@ -308,15 +308,3 @@ class IlluminaSimulator(BaseSimulator):
                     mark_area(j, 'R')
                     break
         return trigger_map
-
-    def generate_quality_scores(self, read_seq, start_pos, end_pos, strand, is_dephased):
-        return generate_quality_scores(
-            read_seq, start_pos, end_pos, strand, is_dephased,
-            self.profile, self.sse_trigger_map, self.homopolymer_pos
-        )
-
-    def inject_errors(self, sequence, quality_scores, start_pos, strand, is_dephased):
-        return inject_errors(
-            sequence, quality_scores, start_pos, strand, is_dephased,
-            self.sse_trigger_map, self.homopolymer_pos
-        )
