@@ -20,8 +20,8 @@ PACBIO_QUALITY_FLOOR = 2
 HOMOPOLYMER_DECAY_CONST = 2 # TODO check (same as illumina)
 
 # defaault log-normal CV (coeff of variance)
-DEFAULT_CV = None
-DEFAULT_MEAN_READ_LEN = None
+DEFAULT_CV = 0.2
+DEFAULT_MEAN_READ_LEN = 15_000
 
 def generate_quality_scores(
         read_seq: str, start_pos: int, end_pos: int, strand: str,
@@ -91,7 +91,7 @@ def inject_errors(
                     'type': 'deletion',
                     'mode': 'homopolymer',
                     'original_base': base,
-                    'mutated': None,
+                    'mutated_base': None,
                     'quality': quality_scores[i]
                 })
             else:
@@ -106,7 +106,7 @@ def inject_errors(
                         'type': 'insertion',
                         'mode': 'homopolymer',
                         'original_base': base,
-                        'mutated': base,
+                        'mutated_base': base,
                         'quality': quality_scores[i]
                     })
         else:
@@ -115,8 +115,8 @@ def inject_errors(
 
             if error_type == 'substitution':
                 alternative_bases = [b for b in ['A', 'C', 'G', 'T'] if b != base]
-                mutated = random.choice(alternative_bases)
-                out_seq.append(mutated)
+                mutated_base = random.choice(alternative_bases)
+                out_seq.append(mutated_base)
                 out_qual.append(quality_scores[i])
                 errors_injected.append(
                     {
@@ -124,7 +124,7 @@ def inject_errors(
                         'type': 'substitution',
                         'mode': 'background',
                         'original_base': base,
-                        'mutated': mutated,
+                        'mutated_base': mutated_base,
                         'quality': quality_scores[i]
                     })
             elif error_type == 'insertion':
@@ -139,7 +139,7 @@ def inject_errors(
                         'type': 'insertion',
                         'mode': 'background',
                         'original_base': base,
-                        'mutated': inserted,
+                        'mutated_base': inserted,
                         'quality': quality_scores[i]
                     })
             else:
@@ -150,7 +150,7 @@ def inject_errors(
                         'type': 'deletion',
                         'mode': 'background',
                         'original_base': base,
-                        'mutated': None,
+                        'mutated_base': None,
                         'quality': quality_scores[i]
                     })
 
@@ -266,5 +266,5 @@ class PacBioSimulator(BaseSimulator):
 
     def inject_errors(self, sequence, quality_scores):
         return inject_errors(
-            sequence, quality_scores, self.homopolymer_pos, 0
+            sequence, quality_scores, 0, self.homopolymer_pos
         )

@@ -54,8 +54,8 @@ with open(infile) as f:
 
 read_length = len(data["A"][0])
 
-out_path = os.path.join(".\profiles", os.path.basename(outfile))
-os.makedirs("./profiles", exist_ok=True)
+out_path = os.path.join("profiles", os.path.basename(outfile))
+os.makedirs("profiles", exist_ok=True)
 with open(out_path, "a") as out:
     # loop over the possible nucleotides
     for nuc in nucleotides:
