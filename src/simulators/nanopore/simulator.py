@@ -29,13 +29,15 @@ DEFAULT_CV = 1.0
 DEFAULT_MEAN_READ_LEN = 20_000
 
 # TODO verify quality floor from lit
-NANOPORE_QUALITY_FLOOR = 2
+NANOPORE_QUALITY_FLOOR = 7
 
-HOMOPOLYMER_DECAY_CONST = 2 # TODO check (same as illumina)
-HOMOPOLYMER_MIN_LEN = 3
+HOMOPOLYMER_DECAY_CONST = 2 # simplification Delahaye & Nicolas (2021) show that homopolymer sequencing accuracy
+# drops as a function of length remaining above 70% errorless for lengths ≤ 5, then falling sharply
+# (only 25% of length-8 homopolymers correctly sequenced).
+HOMOPOLYMER_MIN_LEN = 2
 
 END_PENALTY_LEN = 100
-END_PENALTY_MAX = 10  # TODO check vs Delahaye
+END_PENALTY_MAX = 10
 
 # Park et al.
 STR_ACCURATE_QUALITY = {

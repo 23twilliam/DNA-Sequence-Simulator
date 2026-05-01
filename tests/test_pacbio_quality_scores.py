@@ -39,21 +39,7 @@ def test_quality_scores_minimum_floor():
         profile=profile,
         homopolymer_pos={i: 50 for i in range(12)}
     )
-    assert all(score >= 2 for score in scores)
-
-def test_homopolymer_penalty_reduces_quality():
-    profile = make_test_profile(read_length=12)
-    seq = "ATCGATCGATCG"
-
-    scores_no_homopolymer = generate_quality_scores(
-        seq, start_pos=0, end_pos=len(seq),  strand='F', profile=profile, homopolymer_pos= {}
-    )
-    scores_with_homopolymer = generate_quality_scores(
-        seq, start_pos=0, end_pos=len(seq), strand='F', profile=profile,
-        homopolymer_pos={i: 5 for i in range (12)}
-    )
-    # Homopolymer should reduce scores
-    assert sum(scores_with_homopolymer) < sum(scores_no_homopolymer)
+    assert all(score >= 7 for score in scores)
 
 def test_missing_profile_falls_back_to_baseline():
     # should default to 38 when no profile

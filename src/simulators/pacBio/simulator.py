@@ -12,11 +12,9 @@ BACKGROUND_TYPES = ["substitution", "insertion", "deletion"]
 
 # homopolymer indel ratio 95% deletion 5% insertion (karst 2021)
 HOMOPOLYMER_DEL_PROB = 0.95
-HOMOPOLYMER_MIN_LEN = 4
+HOMOPOLYMER_MIN_LEN = 5
 
-PACBIO_QUALITY_FLOOR = 2 # TODO verify quality floor from lit
-
-HOMOPOLYMER_DECAY_CONST = 2 # TODO check (same as illumina)
+PACBIO_QUALITY_FLOOR = 7
 
 # defaault log-normal CV (coeff of variance)
 DEFAULT_CV = 0.44
@@ -51,11 +49,7 @@ def generate_quality_scores(
 
         q = q_baseline
 
-        # Homopolymer same decay form as illumina need to TODO check const
-        run_length = homopolymer_pos.get(genome_pos, 0)
-        if run_length > 1:
-            penalty = (run_length - 1) * HOMOPOLYMER_DECAY_CONST
-            q = q - penalty
+        # Homopolymer no decay
 
         qualities.append(max(PACBIO_QUALITY_FLOOR, q))
     return qualities
