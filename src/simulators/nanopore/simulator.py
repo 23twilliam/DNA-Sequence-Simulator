@@ -25,7 +25,7 @@ SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
     "N": (["N"], [1.0])
 }
 
-DEFAULT_CV = 0.2
+DEFAULT_CV = 1.0
 DEFAULT_MEAN_READ_LEN = 20_000
 
 # TODO verify quality floor from lit
@@ -121,7 +121,7 @@ def inject_errors(
         else:
             weights = BACKGROUND_WEIGHTS
             mode = "background"
-
+        motif_len = str_entry["motif_len"] if str_entry else None
         error_type = random.choices(BACKGROUND_TYPES, weights=weights, k=1)[0]
 
         if error_type == 'substitution':
@@ -138,6 +138,7 @@ def inject_errors(
                     'position': i,
                     'type': 'substitution',
                     'mode': mode,
+                    'motif_len': motif_len,
                     'original_base': base,
                     'mutated_base': mutated_base,
                     'quality': quality_scores[i]
@@ -160,6 +161,7 @@ def inject_errors(
                     'position': i,
                     'type': 'insertion',
                     'mode': mode,
+                    'motif_len': motif_len,
                     'original_base': base,
                     'mutated_base': inserted,
                     'quality': quality_scores[i]
@@ -171,6 +173,7 @@ def inject_errors(
                     'position': i,
                     'type': 'deletion',
                     'mode': mode,
+                    'motif_len': motif_len,
                     'original_base': base,
                     'mutated_base': None,
                     'quality': quality_scores[i]

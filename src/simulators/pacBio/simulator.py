@@ -14,13 +14,12 @@ BACKGROUND_TYPES = ["substitution", "insertion", "deletion"]
 HOMOPOLYMER_DEL_PROB = 0.95
 HOMOPOLYMER_MIN_LEN = 4
 
-# TODO verify quality floor from lit
-PACBIO_QUALITY_FLOOR = 2
+PACBIO_QUALITY_FLOOR = 2 # TODO verify quality floor from lit
 
 HOMOPOLYMER_DECAY_CONST = 2 # TODO check (same as illumina)
 
 # defaault log-normal CV (coeff of variance)
-DEFAULT_CV = 0.2
+DEFAULT_CV = 0.44
 DEFAULT_MEAN_READ_LEN = 15_000
 
 def generate_quality_scores(

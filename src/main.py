@@ -6,8 +6,8 @@ import time
 # Default profile paths per platform
 DEFAULT_PROFILES = {
     "illumina": "simulators/illumina/profiles/ecoli_hiseqR1.txt",
-    "pacbio": "simulators/illumina/profiles/ecoli_hiseqR1.txt", #TODO FIX PROFILES
-    "nanopore": "simulators/illumina/profiles/ecoli_hiseqR1.txt"
+    "pacbio": "simulators/pacbio/profiles/ecoli_pacbio.txt",
+    "nanopore": "simulators/nanopore/profiles/salmonella_nanopore.txt"
 }
 
 # Default read lengths per platform
@@ -62,7 +62,7 @@ def run_simulation(platform, input_file, read_length, coverage, output_format, o
         return
 
     print(f"Generated {len(reads)} reads using {simulator.get_platform_name()} simulator")
-    if platform == "pacbio":
+    if platform == "pacbio" or platform == "nanopore":
         print(f"Mean Read length: {read_length}, Coverage: {coverage}x")
     else:
         print(f"Read length: {read_length}, Coverage: {coverage}x")
