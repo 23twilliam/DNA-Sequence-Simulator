@@ -6,11 +6,12 @@ import random
 from collections import defaultdict
 import time
 
+# pfieffer et al.
 SUBST_CHOICES: Dict[str, Tuple[List[str], List[float]]] = {
-    "A": (["C", "G", "T"], [0.04, 0.07, 0.07]),
+    "A": (["C", "G", "T"], [0.04, 0.06, 0.10]),
     "C": (["A", "G", "T"], [0.13, 0.04, 0.11]),
-    "G": (["A", "C", "T"], [0.07, 0.04, 0.11]),
-    "T": (["A", "C", "G"], [0.07, 0.04, 0.07]),
+    "G": (["A", "C", "T"], [0.10, 0.04, 0.11]),
+    "T": (["A", "C", "G"], [0.09, 0.04, 0.05]),
     "N": (["N"], [1.0]),
 }
 
@@ -73,8 +74,8 @@ def inject_errors(
             'position': i,
             'type': 'substitution',
             'mode': mode,
-            'original': original_base,
-            'mutated': mutated_base,
+            'original_base': original_base,
+            'mutated_base': mutated_base,
             'quality': quality_scores[i],
         })
 
@@ -146,8 +147,9 @@ def generate_quality_scores(
         if run_length > 1:
             penalty = (run_length - 1) * HOMOPOLYMER_DECAY
             q = q - penalty
-        # Qualities should never go below 2 (Illumina only reports 2 or above)
-        qualities.append(max(2, q))
+        # Qualities should never go below 2 or above 40 (Illumina only reports 2 or above)
+        floor = max(1, q)
+        qualities.append(min(floor, 40))
     return qualities
 
 
@@ -263,56 +265,22 @@ class IlluminaSimulator(BaseSimulator):
                 for j in range(max(0, sse_start_pos - IMPACT_ZONE), sse_start_pos):
                     trigger_map[j] = (sse_start_pos, 'R')
 
-        i = sequence.find("GGC")
-        while i != -1:
-            # GGC ends at i + 3 so the SSE position starts at i + 3
-            mark_area(i + 3, 'F')
-            i = sequence.find("GGC", i + 1)
+        GG_MOTIFS = [
+            ("GGC", "F", 3),
+            ("GCC", "R", 0),
+            ("GGT", "F", 3),
+            ("ACC", "R", 0),
+            ("GGG", "F", 3),
+            ("CCC", "R", 0),
+            ("CGG", "F", 3),
+            ("CCG", "R", 0),
+        ]
 
-        # GGC on forward = GCC on reverse.
-        i = sequence.find("GCC")
-        while i != -1:
-            mark_area(i, 'R')
-            i = sequence.find("GCC", i + 1)
-
-
-        i = sequence.find("GGT")
-        while i != -1:
-            # GGC ends at i + 3 so the SSE position starts at i + 3
-            mark_area(i + 3, 'F')
-            i = sequence.find("GGT", i + 1)
-
-        # GGT on forward = ACC on reverse.
-        i = sequence.find("ACC")
-        while i != -1:
-            mark_area(i, 'R')
-            i = sequence.find("ACC", i + 1)
-
-
-        i = sequence.find("GGG")
-        while i != -1:
-            # GGC ends at i + 3 so the SSE position starts at i + 3
-            mark_area(i + 3, 'F')
-            i = sequence.find("GGG", i + 1)
-
-        # GGG on forward = CCC on reverse.
-        i = sequence.find("CCC")
-        while i != -1:
-            mark_area(i, 'R')
-            i = sequence.find("CCC", i + 1)
-
-
-        i = sequence.find("CGG")
-        while i != -1:
-            # GGC ends at i + 3 so the SSE position starts at i + 3
-            mark_area(i + 3, 'F')
-            i = sequence.find("CGG", i + 1)
-
-        # CGG on forward = CCG on reverse.
-        i = sequence.find("CCG")
-        while i != -1:
-            mark_area(i, 'R')
-            i = sequence.find("CCC", i + 1)
+        for motif, strand, offset in GG_MOTIFS:
+            i = sequence.find(motif)
+            while i != -1:
+                mark_area(i + offset, strand)
+                i = sequence.find(motif, i + 1)
 
         """
                 Identify positions in the sequence where inverted repeats exist within a sliding window. Marks the impact area downstream of each trigger.
@@ -341,15 +309,3 @@ class IlluminaSimulator(BaseSimulator):
                     mark_area(j, 'R')
                     break
         return trigger_map
-
-    def generate_quality_scores(self, read_seq, start_pos, end_pos, strand, is_dephased):
-        return generate_quality_scores(
-            read_seq, start_pos, end_pos, strand, is_dephased,
-            self.profile, self.sse_trigger_map, self.homopolymer_pos
-        )
-
-    def inject_errors(self, sequence, quality_scores, start_pos, strand, is_dephased):
-        return inject_errors(
-            sequence, quality_scores, start_pos, strand, is_dephased,
-            self.sse_trigger_map, self.homopolymer_pos
-        )

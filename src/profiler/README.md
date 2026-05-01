@@ -24,7 +24,7 @@ I will need to implement that
 
 ### EXAMPLES: ###
 	1) create hiseq2k profiles from all *.fq.gz in the directory fastq_dat_dir
-		python profiler_illumina.py ecoli_hiseq D:\Code\DNA-Sequence-Simulator\src\simulators\illumina\profiler\fastq_dir fastq
+		python profiler.py ecoli_hiseq D:\Code\DNA-Sequence-Simulator\src\profiler\fastq_dir fastq
 ### NOTES: ###
 	For paired-end fastq files, e.g., *.fq or *.fq.gz, the filenames of the 1st reads must be *_1.fq/*_1.fq.gz,
 	or *.1.fq/*.1.fq.gz, and those of the 2nd reads must be *_2.fq/*_2.fq.gz, or *.2.fq/*.2.fq.gz

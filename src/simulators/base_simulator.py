@@ -11,7 +11,8 @@ class BaseSimulator(ABC):
     Abstract base class for all sequencing platform simulators.
     """
 
-    def __init__(self, read_length: int, coverage: float, profile_path: str, num_workers: int = os.cpu_count(), batch_size: int = 5000):
+    def __init__(self, read_length: int, coverage: float, profile_path: str, num_workers: int = os.cpu_count(),
+                 batch_size: int = 5000) -> None:
         """
         Initialise simulator with basic parameters.
 
@@ -28,6 +29,7 @@ class BaseSimulator(ABC):
         self.sequence = None
         self.num_workers = num_workers
         self.batch_size = batch_size
+        self.rc_cache = {}
         self.profile = self.load_quality_profile(profile_path)
 
     @abstractmethod
@@ -49,37 +51,6 @@ class BaseSimulator(ABC):
         """Return platform name (e.g. 'Illumina', 'PacBio', 'Nanopore')"""
         pass
 
-    @abstractmethod
-    def generate_quality_scores(self, read: str) -> List[int]:
-        """
-        Generate quality scores for a read.
-        Quality scores should be generated first because they will influence error injection probability.
-
-        Returns:
-            List of quality scores (Phred scale)
-        """
-        pass
-
-    @abstractmethod
-    def inject_errors(self, sequence: str, quality_scores: List[int]) -> Tuple[str, List[int], List[Dict]]:
-        """
-        Inject sequencing errors into read based on quality scores.
-        Errors should be informed by quality scores
-        - Lower quality positions -> higher error probability
-        - Insertions/deletions will change sequence length -> quality list must adjust
-
-        Args:
-            sequence: Original read sequence
-            quality_scores: Quality scores that guide error probability
-
-        Returns:
-            Tuple of:
-            - sequence_with_errors: Modified sequence
-            - adjusted_qualities: Quality scores
-            - errors_injected: List of errors for ground truth
-        """
-        pass
-
     def calculate_num_reads(self, sequence_length: int) -> int:
         """
         Calculate number of reads needed for desired coverage.
@@ -98,10 +69,17 @@ class BaseSimulator(ABC):
     def reverse_complement(self, sequence: str) -> str:
         """
         Return the reverse complement of sequence.
+        Repeated calls with the same input return the cached result
         """
         # TODO bitwise implementation?
+        cached = self.rc_cache.get(sequence)
+        if cached is not None:
+            return cached
+
         complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'N': 'N'}
-        return ''.join(complement[base] for base in reversed(sequence))
+        result = ''.join(complement[base] for base in reversed(sequence))
+        self.rc_cache[sequence] = result
+        return result
 
     def sample_position(self, sequence_length: int) -> int:
         """
@@ -184,57 +162,6 @@ class BaseSimulator(ABC):
 
         return {pos: dict(bases) for pos, bases in data.items()}
 
-    # def generate_reads(self, sequence_header: str, sequence: str) -> List[Dict]:
-    #     """
-    #     Main read generation method.
-    #     Quality scores -> Errors -> Output
-    #     """
-    #     self.sequence = sequence
-    #     sequence_len = len(sequence)
-    #
-    #     if self.read_length > sequence_len:
-    #         raise ValueError('Read length exceeds sequence length')
-    #
-    #     num_reads = self.calculate_num_reads(sequence_len)
-    #     reads = []
-    #
-    #     for i in range(num_reads):
-    #         start_pos = self.sample_position(sequence_len)
-    #         end_pos = start_pos + self.read_length
-    #         read_seq = sequence[start_pos:end_pos]
-    #
-    #         strand = random.choice(['F', 'R'])
-    #         if strand == 'R':
-    #             read_seq = self.reverse_complement(read_seq)
-    #
-    #         # STEP 1: Generate quality scores
-    #         quality_scores = self.generate_quality_scores(read_seq)
-    #
-    #         # STEP 2: Use quality scores to guide error injection
-    #         read_seq_with_errors, final_qualities, errors_injected = self.inject_errors(
-    #             read_seq,
-    #             quality_scores
-    #         )
-    #
-    #         # Create read record
-    #         read_record = {
-    #             "id": f"{sequence_header}_read_{i + 1}",
-    #             "description": (
-    #                 f"simulated_read platform={self.get_platform_name()} "
-    #                 f"start={start_pos + 1} end={end_pos} "
-    #                 f"length={len(read_seq_with_errors)} coverage={self.coverage}"
-    #             ),
-    #             "sequence": read_seq_with_errors,
-    #             "qualities": final_qualities,
-    #             "true_start": start_pos + 1,
-    #             "true_end": end_pos,
-    #             "errors": errors_injected
-    #         }
-    #
-    #         reads.append(read_record)
-    #
-    #     return reads
-
     def generate_reads(self, sequence_header: str, sequence: str) -> List[Dict]:
         sequence_len = len(sequence)
 
@@ -252,6 +179,15 @@ class BaseSimulator(ABC):
         ]
 
         worker_fn = self._get_worker_fn()
+
+        if self.num_workers == 1:
+            reads = []
+            for batch in batches:
+                args = self._get_worker_args(batch, sequence_header, sequence)
+                reads.extend(worker_fn(*args))
+            reads.sort(key=lambda r: int(r["id"].rsplit("_", 1)[-1]))
+            return reads
+
         worker_args = [
             self._get_worker_args(batch, sequence_header, sequence)
             for batch in batches

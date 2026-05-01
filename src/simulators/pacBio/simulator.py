@@ -1,13 +1,9 @@
 import bisect
 import math
 import os
-
-from fontTools.varLib.models import nonNone
-
 from ..base_simulator import BaseSimulator
 from typing import List, Dict, Tuple
 import random
-from collections import defaultdict
 import time
 
 # empirical PacBio error ratios (ono2022)
@@ -18,14 +14,13 @@ BACKGROUND_TYPES = ["substitution", "insertion", "deletion"]
 HOMOPOLYMER_DEL_PROB = 0.95
 HOMOPOLYMER_MIN_LEN = 4
 
-# TODO verify quality floor from lit
-PACBIO_QUALITY_FLOOR = 2
+PACBIO_QUALITY_FLOOR = 2 # TODO verify quality floor from lit
 
 HOMOPOLYMER_DECAY_CONST = 2 # TODO check (same as illumina)
 
 # defaault log-normal CV (coeff of variance)
-DEFAULT_CV = None
-DEFAULT_MEAN_READ_LEN = None
+DEFAULT_CV = 0.44
+DEFAULT_MEAN_READ_LEN = 15_000
 
 def generate_quality_scores(
         read_seq: str, start_pos: int, end_pos: int, strand: str,
@@ -72,7 +67,7 @@ def inject_errors(
     out_seq = []
     out_qual = []
     errors_injected = []
-    # WE have to append a lot in this because of insertions and deletions, let elegant than Illumina
+    # WE have to append a lot in this because of insertions and deletions, less elegant than Illumina
 
     for i, base in enumerate(sequence):
         error_probability = 10 ** (-quality_scores[i] / 10.0)
@@ -95,7 +90,7 @@ def inject_errors(
                     'type': 'deletion',
                     'mode': 'homopolymer',
                     'original_base': base,
-                    'mutated': None,
+                    'mutated_base': None,
                     'quality': quality_scores[i]
                 })
             else:
@@ -110,7 +105,7 @@ def inject_errors(
                         'type': 'insertion',
                         'mode': 'homopolymer',
                         'original_base': base,
-                        'mutated': base,
+                        'mutated_base': base,
                         'quality': quality_scores[i]
                     })
         else:
@@ -119,8 +114,8 @@ def inject_errors(
 
             if error_type == 'substitution':
                 alternative_bases = [b for b in ['A', 'C', 'G', 'T'] if b != base]
-                mutated = random.choice(alternative_bases)
-                out_seq.append(mutated)
+                mutated_base = random.choice(alternative_bases)
+                out_seq.append(mutated_base)
                 out_qual.append(quality_scores[i])
                 errors_injected.append(
                     {
@@ -128,7 +123,7 @@ def inject_errors(
                         'type': 'substitution',
                         'mode': 'background',
                         'original_base': base,
-                        'mutated': mutated,
+                        'mutated_base': mutated_base,
                         'quality': quality_scores[i]
                     })
             elif error_type == 'insertion':
@@ -143,7 +138,7 @@ def inject_errors(
                         'type': 'insertion',
                         'mode': 'background',
                         'original_base': base,
-                        'mutated': inserted,
+                        'mutated_base': inserted,
                         'quality': quality_scores[i]
                     })
             else:
@@ -154,7 +149,7 @@ def inject_errors(
                         'type': 'deletion',
                         'mode': 'background',
                         'original_base': base,
-                        'mutated': None,
+                        'mutated_base': None,
                         'quality': quality_scores[i]
                     })
 
@@ -261,14 +256,4 @@ class PacBioSimulator(BaseSimulator):
             self.profile,
             self.homopolymer_pos,
             self.reverse_complement,
-        )
-
-    def generate_quality_scores(self, read_seq, start_pos, end_pos, strand):
-        return generate_quality_scores(
-            read_seq, start_pos, end_pos, strand, self.profile, self.homopolymer_pos
-        )
-
-    def inject_errors(self, sequence, quality_scores):
-        return inject_errors(
-            sequence, quality_scores, self.homopolymer_pos, 0
         )

@@ -1,14 +1,35 @@
 import pytest
 from src.simulators.base_simulator import BaseSimulator
+from pathlib import Path
+import math
 
 class Simulator(BaseSimulator):
+    def _precompute(self, sequence): pass
+    def _get_worker_args(self, batch, sequence_header, sequence): return (batch, sequence_header, sequence)
+    def _get_worker_fn(self):
+        def worker(batch, sequence_header, sequence):
+            return [{
+                "id": f"{sequence_header}_read_{i + 1}",
+                "description": "test read",
+                "sequence": sequence[:10],
+                "qualities": [30] * 10,
+                "true_start": 1,
+                "true_end": 10,
+                "strand": "F",
+                "errors": []
+            } for i in batch]
+        return worker
     def get_platform_name(self): return "Test"
     def generate_quality_scores(self, read): return [30] * len(read)
     def inject_errors(self, seq, quals): return seq, quals, []
 
+TEST_DIR = Path(__file__).resolve().parent
+FILES_DIR = TEST_DIR / "test_files"
+
 @pytest.fixture
 def sim():
-    return Simulator(read_length=100, coverage=30)
+    profile = FILES_DIR / "test_profile.txt"
+    return Simulator(read_length=100, coverage=30, profile_path=profile, num_workers=1)
 
 def test_read_length_exceeds_sequence(sim):
     with pytest.raises(ValueError):
@@ -17,7 +38,7 @@ def test_read_length_exceeds_sequence(sim):
 def test_read_structure_complete(sim):
     sequence = "ATGC" * 25
     reads = sim.generate_reads(sequence_header="test_seq", sequence=sequence)
-    expected_keys = {'id', 'description', 'sequence', 'qualities', 'true_start', 'true_end', 'errors'}
+    expected_keys = {'id', 'description', 'sequence', 'qualities', 'true_start', 'true_end', 'strand', 'errors'}
     for read in reads:
         assert expected_keys.issubset(read.keys())
 
@@ -39,14 +60,15 @@ def test_num_reads_basic(sim):
     assert sim.calculate_num_reads(3000) == 900
 
 def test_num_reads_truncates_not_rounds(sim):
-    # Should use int()
+    # Should use ceil
     result = sim.calculate_num_reads(101)
     assert isinstance(result, int)
-    assert result == int((101 * 30) / 100)
+    assert result == math.ceil((101 * 30) / 100)
 
 def test_num_reads_coverage_effect():
-    sim_high = Simulator(read_length=100, coverage=60)
-    sim_low = Simulator(read_length=100, coverage=30)
+    profile = FILES_DIR / "test_profile.txt"
+    sim_high = Simulator(read_length=100, coverage=60, profile_path=profile)
+    sim_low = Simulator(read_length=100, coverage=30, profile_path=profile)
     assert sim_high.calculate_num_reads(1000) == 2 * sim_low.calculate_num_reads(1000)
 
 ########################################################################################################################
@@ -90,3 +112,27 @@ def test_quality_to_error_probability(sim):
     assert sim.quality_to_error_probability(20) == pytest.approx(0.01)
     # Q10 should give 0.1
     assert sim.quality_to_error_probability(10) == pytest.approx(0.1)
+
+########################################################################################################################
+
+
+def test_load_profile_raises_on_malformed_line(sim, tmp_path):
+    profile_file = tmp_path / "bad_profile.txt"
+    profile_file.write_text("A\tNOT_AN_INT\t30\nA\t0\t100\n")
+
+    with pytest.raises(ValueError, match="Improper profile entry at line 1"):
+        sim.load_quality_profile(filename= str(profile_file))
+
+
+def test_load_profile_valid_file(sim, tmp_path):
+    profile_file = tmp_path / "profile.txt"
+    profile_file.write_text("A\t0\t30\t31\nA\t0\t100\t200\n")
+
+    profile = sim.load_quality_profile(filename= str(profile_file))
+    assert profile[0]["A"]["total"] == 200
+
+def test_profile(sim, tmp_path):
+    profile_file = FILES_DIR / "test_profile.txt"
+    profile = sim.load_quality_profile(filename= str(profile_file))
+    print(profile)
+    assert profile[0]["A"]["total"] == 4

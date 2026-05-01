@@ -57,8 +57,8 @@ def test_error_record_structure():
         assert 'position' in err
         assert 'type' in err
         assert 'mode' in err
-        assert 'original' in err
-        assert 'mutated' in err
+        assert 'original_base' in err
+        assert 'mutated_base' in err
         assert 'quality' in err
         assert err['type'] == 'substitution'
         assert err['mode'] in ['background', 'lagging', 'prephasing']
@@ -88,7 +88,7 @@ def test_depahsed_can_produce_lagging_errors():
     for _ in range(500):
         _, _, errors = inject_errors(
             sequence=seq, quality_scores=qualities, start_pos=0, strand='F', is_dephased=True,
-            sse_trigger_map={i: 'F' for i in range(12)},
+            sse_trigger_map={i: (i, 'F') for i in range(12)},
             homopolymer_pos={}
         )
         for error in errors:
@@ -128,7 +128,7 @@ def test_mutated_base_differs_from_original():
             sequence=seq, quality_scores=qualities, start_pos=0, strand='F', is_dephased=True,sse_trigger_map={},homopolymer_pos={}
         )
         for error in errors:
-            assert error['mutated'] != error['original']
+            assert error['mutated_base'] != error['original_base']
 
 ########################################################################################################################
 

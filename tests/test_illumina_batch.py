@@ -1,6 +1,5 @@
 import pytest
 from src.simulators.illumina.simulator import _simulate_batch
-from pathlib import Path
 
 def make_test_profile(read_length: int):
     """

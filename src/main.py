@@ -1,12 +1,13 @@
 import argparse
 import io_functions
-from simulators import IlluminaSimulator, PacBioSimulator
+from simulators import IlluminaSimulator, PacBioSimulator, NanoporeSimulator
 import time
 
 # Default profile paths per platform
 DEFAULT_PROFILES = {
     "illumina": "simulators/illumina/profiles/ecoli_hiseqR1.txt",
-    "pacbio": "simulators/illumina/profiles/ecoli_hiseqR1.txt"
+    "pacbio": "simulators/pacbio/profiles/ecoli_pacbio.txt",
+    "nanopore": "simulators/nanopore/profiles/salmonella_nanopore.txt"
 }
 
 # Default read lengths per platform
@@ -18,6 +19,7 @@ DEFAULT_READ_LENGTHS = {
 # PacBio length distribution coefficient of variation
 # TODO: check literature
 PACBIO_DEFAULT_CV = 0.3
+NANOPORE_DEFAULT_CV = 0.3
 
 def build_simulator(platform, read_length, coverage, profile_path):
     """Construct the appropriate simulator for the chosen platform."""
@@ -33,6 +35,13 @@ def build_simulator(platform, read_length, coverage, profile_path):
             coverage=coverage,
             profile_filename=profile_path,
             cv=PACBIO_DEFAULT_CV,
+        )
+    elif platform == "nanopore":
+        return NanoporeSimulator(
+            mean_read_length=read_length,
+            coverage=coverage,
+            profile_filename=profile_path,
+            cv=NANOPORE_DEFAULT_CV,
         )
     else:
         raise ValueError(f"Platform '{platform}' not yet implemented")
@@ -53,7 +62,7 @@ def run_simulation(platform, input_file, read_length, coverage, output_format, o
         return
 
     print(f"Generated {len(reads)} reads using {simulator.get_platform_name()} simulator")
-    if platform == "pacbio":
+    if platform == "pacbio" or platform == "nanopore":
         print(f"Mean Read length: {read_length}, Coverage: {coverage}x")
     else:
         print(f"Read length: {read_length}, Coverage: {coverage}x")
